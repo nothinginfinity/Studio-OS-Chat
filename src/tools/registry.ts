@@ -1,10 +1,12 @@
 import type { ToolDefinition } from "../lib/types";
-import { echoTool } from "./echo";
+import { fileSearchTool } from "./fileSearch";
 import { calculatorTool } from "./calculator";
+import { echoTool } from "./echo";
 
 export const toolRegistry: ToolDefinition[] = [
-  echoTool,
-  calculatorTool
+  fileSearchTool,
+  calculatorTool,
+  echoTool
 ];
 
 export function getToolByName(name: string): ToolDefinition | undefined {
