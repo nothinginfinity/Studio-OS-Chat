@@ -17,7 +17,8 @@ import type {
   ChatMessage,
   ChatSession,
   ChatSettings,
-  OllamaMessage
+  OllamaMessage,
+  ToolCall
 } from "../lib/types";
 import { usePersistentState } from "./usePersistentState";
 import { toolRegistry, getToolByName } from "../tools/registry";
@@ -118,18 +119,18 @@ export function useChat() {
       status: "streaming"
     };
 
-    const firstPassMessages = [...session.messages, userMessage, assistantDraft];
     upsertSession({
       ...session,
       title: session.messages.length ? session.title : trimmed.slice(0, 40),
       updatedAt: now(),
-      messages: firstPassMessages
+      messages: [...session.messages, userMessage, assistantDraft]
     });
 
     setIsLoading(true);
 
     try {
-      let streamedToolCalls: ChatMessage["toolCalls"] = [];
+      // Accumulate tool calls across chunks — push, never overwrite
+      const streamedToolCalls: ToolCall[] = [];
 
       const firstResponse = await chatWithOllamaStream(
         {
@@ -157,43 +158,48 @@ export function useChat() {
             );
           },
           onToolCalls: (toolCalls) => {
-            streamedToolCalls = toolCalls.map((call) => ({
-              id: uid(),
-              function: {
-                name: call.function.name,
-                arguments: call.function.arguments
-              }
-            }));
+            // Accumulate, preserving provider-supplied IDs where present
+            for (const call of toolCalls) {
+              streamedToolCalls.push({
+                // Keep the model's own ID if it provided one; fall back to local uid
+                id: (call as ToolCall).id ?? uid(),
+                function: {
+                  name: call.function.name,
+                  arguments: call.function.arguments
+                }
+              });
+            }
           }
         }
       );
 
+      // firstResponse.message.content is now the fully accumulated streamed text
+      // (ollama.ts returns a synthesized response, not the final stats chunk)
       const finalAssistantMessage: ChatMessage = {
         id: assistantDraftId,
         role: "assistant",
         content: firstResponse.message?.content ?? "",
         createdAt: assistantDraft.createdAt,
         status: "complete",
-        toolCalls: streamedToolCalls
+        toolCalls: streamedToolCalls.length ? streamedToolCalls : undefined
       };
 
-      setSessions((prev) => {
-        const resolvedSession = prev.find((s) => s.id === session.id);
-        if (!resolvedSession) return prev;
-
-        let workingMessages = [
-          ...resolvedSession.messages.filter((m) => m.id !== assistantDraftId),
-          finalAssistantMessage
-        ];
-
-        return prev.map((s) =>
+      setSessions((prev) =>
+        prev.map((s) =>
           s.id !== session.id
             ? s
-            : { ...s, updatedAt: now(), messages: workingMessages }
-        );
-      });
+            : {
+                ...s,
+                updatedAt: now(),
+                messages: [
+                  ...s.messages.filter((m) => m.id !== assistantDraftId),
+                  finalAssistantMessage
+                ]
+              }
+        )
+      );
 
-      if (streamedToolCalls && streamedToolCalls.length > 0) {
+      if (streamedToolCalls.length > 0) {
         let toolMessages: ChatMessage[] = [];
 
         for (const call of streamedToolCalls) {
@@ -208,6 +214,7 @@ export function useChat() {
             createdAt: now(),
             toolName: tool.name,
             toolData: result,
+            // Preserve the provider-supplied call ID for the round-trip
             toolCallId: call.id
           };
           toolMessages = [...toolMessages, toolMessage];
