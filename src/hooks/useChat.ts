@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  loadSessions,
-  saveSessions,
-  loadActiveSessionId,
-  saveActiveSessionId,
+  putSession,
+  listSessions,
+  putMessages,
+  listMessages,
+  renameSession as dbRenameSession
+} from "../lib/db";
+import {
   loadSettings,
   saveSettings
 } from "../lib/storage";
@@ -13,33 +16,73 @@ import {
   chatWithOllamaStream
 } from "../lib/ollama";
 import { now, uid } from "../lib/utils";
+import { deriveSessionTitle } from "../components/SessionTitleEditor";
 import type {
   ChatMessage,
   ChatSession,
   ChatSettings,
   OllamaMessage,
+  SessionRecord,
   ToolCall
 } from "../lib/types";
 import { usePersistentState } from "./usePersistentState";
 import { toolRegistry, getToolByName } from "../tools/registry";
 
-export function useChat() {
-  const [sessions, setSessions] = usePersistentState<ChatSession[]>(
-    loadSessions,
-    saveSessions
-  );
-  const [activeSessionId, setActiveSessionIdState] = usePersistentState<string | null>(
-    loadActiveSessionId,
-    saveActiveSessionId
-  );
+function sessionToRecord(s: ChatSession, messageCount: number): SessionRecord {
+  return {
+    id: s.id,
+    title: s.title,
+    titleSource: s.titleSource,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    messageCount
+  };
+}
 
+export function useChat() {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
   const [settings, setSettings] = usePersistentState<ChatSettings>(
     loadSettings,
     saveSettings
   );
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [dbReady, setDbReady] = useState(false);
+
+  // Load sessions from IndexedDB on mount
+  useEffect(() => {
+    async function loadFromDb() {
+      const records = await listSessions();
+      const hydrated: ChatSession[] = await Promise.all(
+        records.map(async (rec) => {
+          const msgs = await listMessages(rec.id);
+          return {
+            id: rec.id,
+            title: rec.title,
+            titleSource: rec.titleSource,
+            createdAt: rec.createdAt,
+            updatedAt: rec.updatedAt,
+            messages: msgs as ChatMessage[]
+          };
+        })
+      );
+      setSessions(hydrated.sort((a, b) => b.updatedAt - a.updatedAt));
+      if (hydrated.length > 0) setActiveSessionIdState(hydrated[0].id);
+      setDbReady(true);
+    }
+    loadFromDb();
+  }, []);
+
+  async function persistSessionMeta(session: ChatSession, msgCount: number) {
+    await putSession(sessionToRecord(session, msgCount));
+  }
+
+  async function persistSessionMessages(sessionId: string, messages: ChatMessage[]) {
+    await putMessages(
+      messages.map((m) => ({ ...m, sessionId }))
+    );
+  }
 
   const activeSession =
     sessions.find((s) => s.id === activeSessionId) ??
@@ -48,23 +91,26 @@ export function useChat() {
 
   const messages = activeSession?.messages ?? [];
 
-  function upsertSession(next: ChatSession) {
+  async function upsertSession(next: ChatSession) {
     setSessions((prev) => {
       const exists = prev.some((s) => s.id === next.id);
       if (!exists) return [next, ...prev];
       return prev.map((s) => (s.id === next.id ? next : s));
     });
+    await persistSessionMeta(next, next.messages.length);
+    await persistSessionMessages(next.id, next.messages);
   }
 
-  function createSession(initialMessage?: string) {
+  async function createSession(initialMessage?: string) {
     const session: ChatSession = {
       id: uid(),
-      title: initialMessage?.slice(0, 40) || "New Chat",
+      title: initialMessage?.slice(0, 60) || "New Chat",
+      titleSource: "auto",
       createdAt: now(),
       updatedAt: now(),
       messages: []
     };
-    upsertSession(session);
+    await upsertSession(session);
     setActiveSessionIdState(session.id);
     return session;
   }
@@ -74,16 +120,21 @@ export function useChat() {
     setError("");
   }
 
+  async function renameSession(sessionId: string, title: string) {
+    await dbRenameSession(sessionId, title);
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId ? { ...s, title, titleSource: "manual" } : s
+      )
+    );
+  }
+
   const ollamaMessages = useMemo<OllamaMessage[]>(() => {
     const base: OllamaMessage[] = [
       { role: "system", content: settings.systemPrompt }
     ];
     for (const msg of messages) {
-      if (
-        msg.role === "user" ||
-        msg.role === "assistant" ||
-        msg.role === "tool"
-      ) {
+      if (msg.role === "user" || msg.role === "assistant" || msg.role === "tool") {
         base.push({
           role: msg.role,
           content: msg.content,
@@ -101,7 +152,7 @@ export function useChat() {
     if (!trimmed || isLoading) return;
 
     setError("");
-    const session = activeSession ?? createSession(trimmed);
+    const session = activeSession ?? await createSession(trimmed);
 
     const userMessage: ChatMessage = {
       id: uid(),
@@ -119,17 +170,18 @@ export function useChat() {
       status: "streaming"
     };
 
-    upsertSession({
+    const sessionWithUser: ChatSession = {
       ...session,
-      title: session.messages.length ? session.title : trimmed.slice(0, 40),
+      title: session.messages.length === 0 ? deriveSessionTitle([{ role: "user", content: trimmed }]) : session.title,
+      titleSource: session.messages.length === 0 ? "auto" : session.titleSource,
       updatedAt: now(),
       messages: [...session.messages, userMessage, assistantDraft]
-    });
+    };
+    await upsertSession(sessionWithUser);
 
     setIsLoading(true);
 
     try {
-      // Accumulate tool calls across chunks — push, never overwrite
       const streamedToolCalls: ToolCall[] = [];
 
       const firstResponse = await chatWithOllamaStream(
@@ -158,10 +210,8 @@ export function useChat() {
             );
           },
           onToolCalls: (toolCalls) => {
-            // Accumulate, preserving provider-supplied IDs where present
             for (const call of toolCalls) {
               streamedToolCalls.push({
-                // Keep the model's own ID if it provided one; fall back to local uid
                 id: (call as ToolCall).id ?? uid(),
                 function: {
                   name: call.function.name,
@@ -173,8 +223,6 @@ export function useChat() {
         }
       );
 
-      // firstResponse.message.content is now the fully accumulated streamed text
-      // (ollama.ts returns a synthesized response, not the final stats chunk)
       const finalAssistantMessage: ChatMessage = {
         id: assistantDraftId,
         role: "assistant",
@@ -199,13 +247,25 @@ export function useChat() {
         )
       );
 
+      // After first assistant completion, refine auto-title
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== session.id || s.titleSource !== "auto") return s;
+          const refined = deriveSessionTitle([
+            { role: "user", content: trimmed },
+            { role: "assistant", content: finalAssistantMessage.content }
+          ]);
+          putSession(sessionToRecord({ ...s, title: refined }, s.messages.length));
+          return { ...s, title: refined };
+        })
+      );
+
       if (streamedToolCalls.length > 0) {
         let toolMessages: ChatMessage[] = [];
 
         for (const call of streamedToolCalls) {
           const tool = getToolByName(call.function.name);
           if (!tool) continue;
-
           const result = await tool.run(call.function.arguments);
           const toolMessage: ChatMessage = {
             id: uid(),
@@ -214,7 +274,6 @@ export function useChat() {
             createdAt: now(),
             toolName: tool.name,
             toolData: result,
-            // Preserve the provider-supplied call ID for the round-trip
             toolCallId: call.id
           };
           toolMessages = [...toolMessages, toolMessage];
@@ -224,11 +283,7 @@ export function useChat() {
           prev.map((s) =>
             s.id !== session.id
               ? s
-              : {
-                  ...s,
-                  updatedAt: now(),
-                  messages: [...s.messages, ...toolMessages]
-                }
+              : { ...s, updatedAt: now(), messages: [...s.messages, ...toolMessages] }
           )
         );
 
@@ -265,11 +320,7 @@ export function useChat() {
           prev.map((s) =>
             s.id !== session.id
               ? s
-              : {
-                  ...s,
-                  updatedAt: now(),
-                  messages: [...s.messages, finalAnswer]
-                }
+              : { ...s, updatedAt: now(), messages: [...s.messages, finalAnswer] }
           )
         );
       }
@@ -282,11 +333,7 @@ export function useChat() {
 
   function clearChat() {
     if (!activeSession) return;
-    upsertSession({
-      ...activeSession,
-      updatedAt: now(),
-      messages: []
-    });
+    upsertSession({ ...activeSession, updatedAt: now(), messages: [] });
     setError("");
   }
 
@@ -296,12 +343,14 @@ export function useChat() {
     activeSessionId,
     createSession,
     setActiveSession,
+    renameSession,
     messages,
     settings,
     setSettings,
     sendMessage,
     clearChat,
     isLoading,
-    error
+    error,
+    dbReady
   };
 }
