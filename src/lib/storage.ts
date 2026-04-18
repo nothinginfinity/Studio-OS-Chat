@@ -1,20 +1,33 @@
-import type { ChatMessage, ChatSettings } from "./types";
+import type { ChatSession, ChatSettings } from "./types";
 
-const CHAT_KEY = "local-ai-pwa:messages";
+const SESSIONS_KEY = "local-ai-pwa:sessions";
+const ACTIVE_SESSION_KEY = "local-ai-pwa:active-session-id";
 const SETTINGS_KEY = "local-ai-pwa:settings";
 
-export function loadMessages(): ChatMessage[] {
-  const raw = localStorage.getItem(CHAT_KEY);
+export function loadSessions(): ChatSession[] {
+  const raw = localStorage.getItem(SESSIONS_KEY);
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as ChatMessage[];
+    return JSON.parse(raw) as ChatSession[];
   } catch {
     return [];
   }
 }
 
-export function saveMessages(messages: ChatMessage[]) {
-  localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+export function saveSessions(sessions: ChatSession[]) {
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+}
+
+export function loadActiveSessionId(): string | null {
+  return localStorage.getItem(ACTIVE_SESSION_KEY);
+}
+
+export function saveActiveSessionId(id: string | null) {
+  if (!id) {
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
+    return;
+  }
+  localStorage.setItem(ACTIVE_SESSION_KEY, id);
 }
 
 export function loadSettings(): ChatSettings {
