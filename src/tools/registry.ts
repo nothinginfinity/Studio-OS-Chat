@@ -6,3 +6,7 @@ export const toolRegistry: ToolDefinition[] = [
   echoTool,
   calculatorTool
 ];
+
+export function getToolByName(name: string): ToolDefinition | undefined {
+  return toolRegistry.find((tool) => tool.name === name);
+}
