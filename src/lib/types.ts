@@ -9,6 +9,8 @@ export interface ToolCall {
   };
 }
 
+// ── Chat (in-memory / React state) ───────────────────────────────────────────
+
 export interface ChatMessage {
   id: string;
   role: Role;
@@ -24,6 +26,7 @@ export interface ChatMessage {
 export interface ChatSession {
   id: string;
   title: string;
+  titleSource: "auto" | "manual";
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
@@ -34,6 +37,76 @@ export interface ChatSettings {
   model: string;
   systemPrompt: string;
 }
+
+// ── IndexedDB records ─────────────────────────────────────────────────────────
+
+export interface SessionRecord {
+  id: string;
+  title: string;
+  titleSource: "auto" | "manual";
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+}
+
+export interface MessageRecord {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  createdAt: number;
+  status?: MessageStatus;
+  toolName?: string;
+  toolData?: unknown;
+  toolCallId?: string;
+  toolCalls?: ToolCall[];
+}
+
+export interface FileRootRecord {
+  id: string;
+  name: string;
+  kind: "directory" | "files";
+  addedAt: number;
+  lastIndexedAt: number | null;
+}
+
+export interface FileRecord {
+  id: string;
+  rootId: string;
+  path: string;
+  name: string;
+  ext: string;
+  size: number;
+  modifiedAt: number;
+  contentHash: string;
+  indexedAt: number;
+}
+
+export interface ChunkRecord {
+  id: string;
+  fileId: string;
+  ordinal: number;
+  text: string;
+  textLower: string;
+  tokenCount: number;
+}
+
+export interface TermRecord {
+  term: string;
+  chunkId: string;
+  tf: number;
+}
+
+export interface SearchResult {
+  fileId: string;
+  filePath: string;
+  chunkId: string;
+  snippet: string;
+  score: number;
+  ordinal: number;
+}
+
+// ── Ollama transport ──────────────────────────────────────────────────────────
 
 export interface OllamaToolSpec {
   type: "function";

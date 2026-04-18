@@ -1,52 +1,25 @@
-import type { ChatSession, ChatSettings } from "./types";
+/**
+ * storage.ts — v3: settings only.
+ * Sessions and messages now live in IndexedDB via db.ts.
+ * This module is retained only for synchronous settings access
+ * during initial hook setup before the async DB load completes.
+ */
+import type { ChatSettings } from "./types";
 
-const SESSIONS_KEY = "local-ai-pwa:sessions";
-const ACTIVE_SESSION_KEY = "local-ai-pwa:active-session-id";
 const SETTINGS_KEY = "local-ai-pwa:settings";
-
-export function loadSessions(): ChatSession[] {
-  const raw = localStorage.getItem(SESSIONS_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as ChatSession[];
-  } catch {
-    return [];
-  }
-}
-
-export function saveSessions(sessions: ChatSession[]) {
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-}
-
-export function loadActiveSessionId(): string | null {
-  return localStorage.getItem(ACTIVE_SESSION_KEY);
-}
-
-export function saveActiveSessionId(id: string | null) {
-  if (!id) {
-    localStorage.removeItem(ACTIVE_SESSION_KEY);
-    return;
-  }
-  localStorage.setItem(ACTIVE_SESSION_KEY, id);
-}
 
 export function loadSettings(): ChatSettings {
   const raw = localStorage.getItem(SETTINGS_KEY);
-  if (!raw) {
-    return {
-      ollamaBaseUrl: "http://localhost:11434",
-      model: "llama3.2",
-      systemPrompt: "You are a helpful local AI assistant."
-    };
-  }
+  const defaults: ChatSettings = {
+    ollamaBaseUrl: "http://localhost:11434",
+    model: "llama3.2",
+    systemPrompt: "You are a helpful local AI assistant."
+  };
+  if (!raw) return defaults;
   try {
-    return JSON.parse(raw) as ChatSettings;
+    return { ...defaults, ...(JSON.parse(raw) as Partial<ChatSettings>) };
   } catch {
-    return {
-      ollamaBaseUrl: "http://localhost:11434",
-      model: "llama3.2",
-      systemPrompt: "You are a helpful local AI assistant."
-    };
+    return defaults;
   }
 }
 
