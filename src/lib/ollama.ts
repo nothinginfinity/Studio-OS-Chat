@@ -7,16 +7,18 @@ interface ChatRequest {
   tools?: OllamaToolSpec[];
 }
 
-interface OllamaChatResponse {
+interface RawToolCall {
+  function: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
+export interface OllamaChatResponse {
   message?: {
     role: string;
     content: string;
-    tool_calls?: Array<{
-      function: {
-        name: string;
-        arguments: Record<string, unknown>;
-      };
-    }>;
+    tool_calls?: RawToolCall[];
   };
 }
 
@@ -55,14 +57,7 @@ export async function chatWithOllamaStream(
   { baseUrl, model, messages, tools }: ChatRequest,
   handlers: {
     onTextDelta: (chunk: string) => void;
-    onToolCalls?: (
-      toolCalls: Array<{
-        function: {
-          name: string;
-          arguments: Record<string, unknown>;
-        };
-      }>
-    ) => void;
+    onToolCalls?: (toolCalls: RawToolCall[]) => void;
   }
 ): Promise<OllamaChatResponse> {
   const response = await fetch(`${baseUrl}/api/chat`, {
@@ -79,7 +74,34 @@ export async function chatWithOllamaStream(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let finalPayload: OllamaChatResponse = {};
+
+  // Accumulate across all chunks instead of keeping only the last payload
+  let accumulatedText = "";
+  const accumulatedToolCalls: RawToolCall[] = [];
+
+  function processLine(line: string) {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    let payload: OllamaChatResponse & { done?: boolean };
+    try {
+      payload = JSON.parse(trimmed) as OllamaChatResponse & { done?: boolean };
+    } catch {
+      return; // skip malformed lines
+    }
+
+    const delta = payload.message?.content ?? "";
+    if (delta) {
+      accumulatedText += delta;
+      handlers.onTextDelta(delta);
+    }
+
+    const toolCalls = payload.message?.tool_calls;
+    if (toolCalls?.length) {
+      accumulatedToolCalls.push(...toolCalls);
+      handlers.onToolCalls?.(toolCalls);
+    }
+  }
 
   while (true) {
     const { value, done } = await reader.read();
@@ -90,23 +112,23 @@ export async function chatWithOllamaStream(
     buffer = lines.pop() ?? "";
 
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      const payload = JSON.parse(trimmed) as OllamaChatResponse & { done?: boolean };
-      finalPayload = payload;
-
-      const delta = payload.message?.content ?? "";
-      if (delta) handlers.onTextDelta(delta);
-
-      const toolCalls = payload.message?.tool_calls;
-      if (toolCalls?.length) {
-        handlers.onToolCalls?.(toolCalls);
-      }
+      processLine(line);
     }
   }
 
-  return finalPayload;
+  // Flush any trailing buffered line that did not end with \n
+  if (buffer.trim()) {
+    processLine(buffer);
+  }
+
+  // Return synthesized response built from accumulations, not the final stats chunk
+  return {
+    message: {
+      role: "assistant",
+      content: accumulatedText,
+      tool_calls: accumulatedToolCalls.length ? accumulatedToolCalls : undefined
+    }
+  };
 }
 
 export async function listOllamaModels(baseUrl: string): Promise<string[]> {
