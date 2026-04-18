@@ -8,14 +8,24 @@ export default function App() {
     activeSessionId,
     createSession,
     setActiveSession,
+    renameSession,
     messages,
     settings,
     setSettings,
     sendMessage,
     clearChat,
     isLoading,
-    error
+    error,
+    dbReady
   } = useChat();
+
+  if (!dbReady) {
+    return (
+      <div className="app-loading">
+        <span>Loading…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -27,6 +37,7 @@ export default function App() {
         activeSessionId={activeSessionId}
         onSelectSession={setActiveSession}
         onNewSession={() => createSession()}
+        onRenameSession={renameSession}
       />
       <ChatWindow
         messages={messages}
