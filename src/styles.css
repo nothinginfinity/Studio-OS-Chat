@@ -1,0 +1,150 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, sans-serif;
+  background: #0f1115;
+  color: #f5f7fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  background: #0f1115;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid #222833;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #12161d;
+}
+
+.chat-window {
+  display: grid;
+  grid-template-rows: 1fr auto auto auto;
+  min-height: 100vh;
+}
+
+.message-list {
+  padding: 20px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  border-radius: 12px;
+  padding: 12px 14px;
+  max-width: 840px;
+  white-space: pre-wrap;
+}
+
+.message-user {
+  background: #1f2937;
+  align-self: flex-end;
+}
+
+.message-assistant {
+  background: #18212e;
+  align-self: flex-start;
+}
+
+.message-role {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.composer {
+  border-top: 1px solid #222833;
+  padding: 16px 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid #30394a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #0f1115;
+  color: #f5f7fa;
+}
+
+button {
+  border: 1px solid #3d4a60;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #1c2431;
+  color: #f5f7fa;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #273246;
+}
+
+.error,
+.error-banner {
+  color: #ff9b9b;
+}
+
+.error-banner,
+.status {
+  padding: 0 20px 12px 20px;
+}
+
+.tool-card {
+  background: #151c28;
+  border: 1px solid #253045;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid #222833;
+  }
+
+  .chat-window {
+    min-height: auto;
+  }
+}
