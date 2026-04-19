@@ -33,6 +33,7 @@ export interface ChatSession {
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
+  exportRef?: ChatExportRef;
 }
 
 export interface ChatSettings {
@@ -54,6 +55,10 @@ export interface SessionRecord {
   createdAt: number;
   updatedAt: number;
   messageCount: number;
+  exportArtifactId?: string;
+  exportPath?: string;
+  exportedAt?: number;
+  exportFormat?: "osmd@1";
 }
 
 export interface MessageRecord {
@@ -135,6 +140,59 @@ export interface ArtifactRecord {
   manifest: string;
   /** Optional GitHub repo URL if pushed */
   repoUrl?: string;
+  /** Canonical export format */
+  format?: "osmd@1";
+  /** Main artifact path for quick lookup */
+  primaryPath?: string;
+}
+
+// ── OSMD export types ─────────────────────────────────────────────────────────
+
+export interface ChatExportRef {
+  artifactId: string;
+  slug: string;
+  exportPath: string;          // exports/chats/<filename>.osmd
+  exportedAt: number;          // unix ms
+  format: "osmd@1";
+}
+
+export interface OSMDMeta {
+  id: string;                  // artifact/session export id
+  sessionId: string;
+  title: string;
+  sessionDate: string;         // ISO
+  createdAt: string;           // ISO
+  updatedAt: string;           // ISO
+  exportedAt: string;          // ISO
+  provider?: string;
+  model?: string;
+  messageCount: number;
+  toolCallCount: number;
+  fileRefs: string[];
+  tags: string[];
+  exportPath: string;
+  format: "osmd@1";
+}
+
+export interface OSMDIndexEntry {
+  id: string;
+  sessionId: string;
+  title: string;
+  date: string;                // YYYY-MM-DD
+  path: string;
+  summary: string | null;
+  tags: string[];
+  messageCount: number;
+  exportedAt: string;
+  provider?: string;
+  model?: string;
+  format: "osmd@1";
+}
+
+export interface OSMDIndex {
+  version: "osmd-index@1";
+  updatedAt: string;
+  exports: OSMDIndexEntry[];
 }
 
 // ── Perplexity Space records ──────────────────────────────────────────────────
