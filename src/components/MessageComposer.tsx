@@ -1,14 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { promotePromptToAsset } from "../lib/prompts";
+import { uid } from "../lib/utils";
 
 interface Props {
   onSend: (text: string) => Promise<void>;
   disabled?: boolean;
-  /** Optional: session id used to tag saved prompt assets */
   sessionId?: string;
-  /** Text injected from an external source (e.g. PromptLibrary insert) */
   externalText?: string;
-  /** Called once externalText has been applied so the parent can clear it */
   onExternalTextConsumed?: () => void;
 }
 
@@ -24,7 +22,6 @@ export function MessageComposer({
   const [savedFlash, setSavedFlash] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Apply injected text from parent
   useEffect(() => {
     if (externalText) {
       setText(externalText);
@@ -52,9 +49,9 @@ export function MessageComposer({
     setSaving(true);
     try {
       await promotePromptToAsset({
-        content: value,
-        title: value.slice(0, 72),
-        sessionId,
+        sourceMessageId: uid(),
+        sessionId: sessionId ?? "composer",
+        promptText: value,
         tags: [],
         starred: false,
         pinned: false,

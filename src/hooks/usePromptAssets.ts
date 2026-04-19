@@ -5,14 +5,13 @@ import {
   listStarredPromptAssets,
   listPinnedPromptAssets,
   searchUserPrompts,
-  type PromptAssetRecord,
-  type PromotePromptInput,
 } from "../lib/prompts";
+import type { PromptAssetRecord, PromptHistoryItem, PromotePromptInput } from "../lib/types";
 
 export interface UsePromptAssetsResult {
   starred: PromptAssetRecord[];
   pinned: PromptAssetRecord[];
-  searchResults: PromptAssetRecord[];
+  searchResults: PromptHistoryItem[];
   searching: boolean;
   loading: boolean;
   promote: (input: PromotePromptInput) => Promise<PromptAssetRecord>;
@@ -25,7 +24,7 @@ export interface UsePromptAssetsResult {
 export function usePromptAssets(active: boolean): UsePromptAssetsResult {
   const [starred, setStarred] = useState<PromptAssetRecord[]>([]);
   const [pinned, setPinned] = useState<PromptAssetRecord[]>([]);
-  const [searchResults, setSearchResults] = useState<PromptAssetRecord[]>([]);
+  const [searchResults, setSearchResults] = useState<PromptHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
 

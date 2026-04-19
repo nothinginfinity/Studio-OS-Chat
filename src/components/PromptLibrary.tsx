@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { usePromptAssets } from "../hooks/usePromptAssets";
-import type { PromptAssetRecord } from "../lib/prompts";
+import type { PromptAssetRecord, PromptHistoryItem } from "../lib/types";
 
 interface Props {
   active: boolean;
@@ -35,12 +35,8 @@ export function PromptLibrary({ active, onInsertPrompt }: Props) {
     else setTab("pinned");
   }
 
-  const displayList: PromptAssetRecord[] =
-    tab === "pinned" ? pinned : tab === "starred" ? starred : searchResults;
-
   return (
     <div className="prompt-library">
-      {/* Search */}
       <div className="prompt-library-search-row">
         <input
           className="prompt-history-search"
@@ -61,7 +57,6 @@ export function PromptLibrary({ active, onInsertPrompt }: Props) {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="prompt-sort-toggle">
         {(["pinned", "starred", "search"] as LibraryTab[]).map((t) => (
           <button
@@ -77,67 +72,88 @@ export function PromptLibrary({ active, onInsertPrompt }: Props) {
         ))}
       </div>
 
-      {/* List */}
       <div className="prompt-history-list" role="list">
-        {(loading || searching) && displayList.length === 0 && (
+        {(loading || searching) && (
+          (tab === "pinned" ? pinned : tab === "starred" ? starred : searchResults).length === 0
+        ) && (
           <div className="prompt-history-empty">Loading…</div>
         )}
-        {!loading && !searching && displayList.length === 0 && (
-          <div className="prompt-history-empty">
-            {tab === "search"
-              ? "No results."
-              : tab === "pinned"
-              ? "No pinned prompts yet. Pin a saved prompt to see it here."
-              : "No starred prompts yet."}
-          </div>
-        )}
-        {displayList.map((asset) => (
-          <div key={asset.id} className="prompt-card" role="listitem">
-            <div className="prompt-card-content">
-              {asset.title || asset.content.slice(0, 120)}
+
+        {/* Pinned / Starred tabs — PromptAssetRecord[] */}
+        {!loading && tab !== "search" && (() => {
+          const list: PromptAssetRecord[] = tab === "pinned" ? pinned : starred;
+          if (list.length === 0) return (
+            <div className="prompt-history-empty">
+              {tab === "pinned"
+                ? "No pinned prompts yet."
+                : "No starred prompts yet."}
             </div>
-            {asset.title && (
-              <div className="prompt-card-snippet">{asset.content.slice(0, 100)}…</div>
-            )}
-            <div className="prompt-card-meta">
-              <span className="prompt-card-time">{relativeTime(asset.createdAt)}</span>
-              {asset.tags?.length ? (
-                <span className="prompt-card-tags">{asset.tags.join(", ")}</span>
-              ) : null}
-            </div>
-            <div className="prompt-card-actions">
-              {onInsertPrompt && (
+          );
+          return list.map((asset) => (
+            <div key={asset.id} className="prompt-card" role="listitem">
+              <div className="prompt-card-content">{asset.promptText.slice(0, 160)}</div>
+              <div className="prompt-card-meta">
+                <span className="prompt-card-time">{relativeTime(asset.createdAt)}</span>
+                {asset.tags?.length ? (
+                  <span className="prompt-card-tags">{asset.tags.join(", ")}</span>
+                ) : null}
+              </div>
+              <div className="prompt-card-actions">
+                {onInsertPrompt && (
+                  <button
+                    className="prompt-card-btn"
+                    onClick={() => onInsertPrompt(asset.promptText)}
+                    aria-label="Insert into composer"
+                  >
+                    Insert
+                  </button>
+                )}
                 <button
-                  className="prompt-card-btn"
-                  onClick={() => onInsertPrompt(asset.content)}
-                  aria-label="Insert into composer"
+                  className={`prompt-card-btn${asset.starred ? " prompt-card-btn--active" : ""}`}
+                  onClick={() => star(asset.id, !asset.starred)}
+                  aria-label={asset.starred ? "Unstar" : "Star"}
                 >
-                  Insert
+                  {asset.starred ? "★" : "☆"}
                 </button>
-              )}
-              <button
-                className={`prompt-card-btn${
-                  asset.starred ? " prompt-card-btn--active" : ""
-                }`}
-                onClick={() => star(asset.id, !asset.starred)}
-                aria-label={asset.starred ? "Unstar" : "Star"}
-                title={asset.starred ? "Remove star" : "Star"}
-              >
-                {asset.starred ? "★" : "☆"}
-              </button>
-              <button
-                className={`prompt-card-btn${
-                  asset.pinned ? " prompt-card-btn--active" : ""
-                }`}
-                onClick={() => pin(asset.id, !asset.pinned)}
-                aria-label={asset.pinned ? "Unpin" : "Pin"}
-                title={asset.pinned ? "Unpin" : "Pin to top"}
-              >
-                {asset.pinned ? "📌" : "📎"}
-              </button>
+                <button
+                  className={`prompt-card-btn${asset.pinned ? " prompt-card-btn--active" : ""}`}
+                  onClick={() => pin(asset.id, !asset.pinned)}
+                  aria-label={asset.pinned ? "Unpin" : "Pin"}
+                >
+                  {asset.pinned ? "📌" : "📎"}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ));
+        })()}
+
+        {/* Search tab — PromptHistoryItem[] */}
+        {!searching && tab === "search" && (() => {
+          const list: PromptHistoryItem[] = searchResults;
+          if (list.length === 0) return (
+            <div className="prompt-history-empty">No results.</div>
+          );
+          return list.map((item) => (
+            <div key={item.messageId} className="prompt-card" role="listitem">
+              <div className="prompt-card-content">{item.promptText.slice(0, 160)}</div>
+              <div className="prompt-card-meta">
+                <span className="prompt-card-session">{item.sessionTitle}</span>
+                <span className="prompt-card-time">{relativeTime(item.createdAt)}</span>
+              </div>
+              <div className="prompt-card-actions">
+                {onInsertPrompt && (
+                  <button
+                    className="prompt-card-btn"
+                    onClick={() => onInsertPrompt(item.promptText)}
+                    aria-label="Insert into composer"
+                  >
+                    Insert
+                  </button>
+                )}
+              </div>
+            </div>
+          ));
+        })()}
       </div>
     </div>
   );

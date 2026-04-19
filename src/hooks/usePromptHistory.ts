@@ -2,15 +2,13 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   listAllUserPrompts,
   promotePromptToAsset,
-  type PromptEntry,
-  type PromptAssetRecord,
-  type PromotePromptInput,
 } from "../lib/prompts";
+import type { PromptHistoryItem, PromptAssetRecord, PromotePromptInput } from "../lib/types";
 
 export type SortOrder = "newest" | "oldest";
 
 export interface UsePromptHistoryResult {
-  prompts: PromptEntry[];
+  prompts: PromptHistoryItem[];
   loading: boolean;
   query: string;
   setQuery: (q: string) => void;
@@ -21,7 +19,7 @@ export interface UsePromptHistoryResult {
 }
 
 export function usePromptHistory(active: boolean): UsePromptHistoryResult {
-  const [allPrompts, setAllPrompts] = useState<PromptEntry[]>([]);
+  const [allPrompts, setAllPrompts] = useState<PromptHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
@@ -36,7 +34,6 @@ export function usePromptHistory(active: boolean): UsePromptHistoryResult {
     }
   }, []);
 
-  // Load once when the panel becomes active
   useEffect(() => {
     if (active) load();
   }, [active, load]);
@@ -47,7 +44,7 @@ export function usePromptHistory(active: boolean): UsePromptHistoryResult {
       tokens.length === 0
         ? allPrompts
         : allPrompts.filter((p) =>
-            tokens.every((tok) => p.content.toLowerCase().includes(tok))
+            tokens.every((tok) => p.promptText.toLowerCase().includes(tok))
           );
     return sortOrder === "newest" ? [...base] : [...base].reverse();
   }, [allPrompts, query, sortOrder]);

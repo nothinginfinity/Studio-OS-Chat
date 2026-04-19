@@ -1,5 +1,6 @@
 import { usePromptHistory, type SortOrder } from "../hooks/usePromptHistory";
-import type { PromptAssetRecord } from "../lib/prompts";
+import type { PromotePromptInput } from "../lib/types";
+import { uid } from "../lib/utils";
 
 interface Props {
   active: boolean;
@@ -23,20 +24,20 @@ export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) 
   const { prompts, loading, query, setQuery, sortOrder, setSortOrder, refresh, promote } =
     usePromptHistory(active);
 
-  async function handlePromote(content: string, sessionId: string) {
-    await promote({
-      content,
-      title: content.slice(0, 72),
+  async function handlePromote(messageId: string, sessionId: string, promptText: string) {
+    const input: PromotePromptInput = {
+      sourceMessageId: messageId,
       sessionId,
-      tags: [],
+      promptText,
       starred: false,
       pinned: false,
-    });
+      tags: [],
+    };
+    await promote(input);
   }
 
   return (
     <div className="prompt-history">
-      {/* Search bar */}
       <div className="prompt-history-search-row">
         <input
           className="prompt-history-search"
@@ -56,7 +57,6 @@ export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) 
         </button>
       </div>
 
-      {/* Sort toggle + count */}
       <div className="prompt-history-sort-row">
         <span className="prompt-history-count">
           {loading
@@ -79,7 +79,6 @@ export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) 
         </div>
       </div>
 
-      {/* Scrollable prompt list */}
       <div className="prompt-history-list" role="list">
         {loading && prompts.length === 0 && (
           <div className="prompt-history-empty">Loading…</div>
@@ -93,7 +92,7 @@ export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) 
         )}
         {prompts.map((p) => (
           <div key={p.messageId} className="prompt-card" role="listitem">
-            <div className="prompt-card-content">{p.content}</div>
+            <div className="prompt-card-content">{p.promptText}</div>
             <div className="prompt-card-meta">
               <span className="prompt-card-session">{p.sessionTitle}</span>
               <span className="prompt-card-time">{relativeTime(p.createdAt)}</span>
@@ -109,20 +108,25 @@ export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) 
               {onInsertPrompt && (
                 <button
                   className="prompt-card-btn"
-                  onClick={() => onInsertPrompt(p.content)}
+                  onClick={() => onInsertPrompt(p.promptText)}
                   aria-label="Insert prompt into composer"
                 >
                   Insert
                 </button>
               )}
-              <button
-                className="prompt-card-btn prompt-card-btn--save"
-                onClick={() => handlePromote(p.content, p.sessionId)}
-                aria-label="Save to prompt library"
-                title="Save to library"
-              >
-                ★ Save
-              </button>
+              {!p.assetId && (
+                <button
+                  className="prompt-card-btn prompt-card-btn--save"
+                  onClick={() => handlePromote(p.messageId, p.sessionId, p.promptText)}
+                  aria-label="Save to prompt library"
+                  title="Save to library"
+                >
+                  ★ Save
+                </button>
+              )}
+              {p.assetId && (
+                <span className="prompt-card-saved" title="Already in library">✓ Saved</span>
+              )}
             </div>
           </div>
         ))}
