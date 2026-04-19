@@ -4,6 +4,7 @@ import { ModelSelector } from "./ModelSelector";
 import { SessionTitleEditor } from "./SessionTitleEditor";
 import { FilesPanel } from "./FilesPanel";
 import { OllamaStatus } from "./OllamaStatus";
+import ProviderSettings from "./ProviderSettings";
 
 interface SidebarProps {
   settings: ChatSettings;
@@ -16,7 +17,7 @@ interface SidebarProps {
   onRenameSession: (id: string, title: string) => void;
 }
 
-type Tab = "chats" | "files";
+type Tab = "chats" | "files" | "settings";
 
 export function Sidebar({
   settings,
@@ -30,9 +31,13 @@ export function Sidebar({
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
 
+  function handleSettingsChange(next: ChatSettings) {
+    setSettings(next);
+  }
+
   return (
     <aside className="sidebar">
-      <h1>Local AI</h1>
+      <h1>Studio OS Chat</h1>
 
       <OllamaStatus settings={settings} />
 
@@ -48,6 +53,12 @@ export function Sidebar({
           onClick={() => setTab("files")}
         >
           Files
+        </button>
+        <button
+          className={tab === "settings" ? "tab active" : "tab"}
+          onClick={() => setTab("settings")}
+        >
+          ⚙️
         </button>
       </div>
 
@@ -71,19 +82,9 @@ export function Sidebar({
           </div>
 
           <label className="field">
-            <span>Ollama URL</span>
-            <input
-              value={settings.ollamaBaseUrl}
-              onChange={(e) =>
-                setSettings((prev) => ({ ...prev, ollamaBaseUrl: e.target.value }))
-              }
-            />
-          </label>
-          <ModelSelector settings={settings} setSettings={setSettings} />
-          <label className="field">
             <span>System Prompt</span>
             <textarea
-              rows={6}
+              rows={4}
               value={settings.systemPrompt}
               onChange={(e) =>
                 setSettings((prev) => ({ ...prev, systemPrompt: e.target.value }))
@@ -95,6 +96,33 @@ export function Sidebar({
       )}
 
       {tab === "files" && <FilesPanel />}
+
+      {tab === "settings" && (
+        <>
+          <ProviderSettings
+            settings={settings}
+            onSettingsChange={handleSettingsChange}
+          />
+
+          {/* Ollama-specific URL — only shown when Ollama is active */}
+          {settings.provider === "ollama" && (
+            <label className="field">
+              <span>Ollama URL</span>
+              <input
+                value={settings.ollamaBaseUrl}
+                onChange={(e) =>
+                  setSettings((prev) => ({ ...prev, ollamaBaseUrl: e.target.value }))
+                }
+              />
+            </label>
+          )}
+
+          {/* ModelSelector only for Ollama (cloud providers use ProviderSettings dropdown) */}
+          {settings.provider === "ollama" && (
+            <ModelSelector settings={settings} setSettings={setSettings} />
+          )}
+        </>
+      )}
     </aside>
   );
 }
