@@ -2,13 +2,15 @@
  * db.ts — IndexedDB persistence backbone for studio-os-chat v3
  *
  * Object stores:
- *   sessions   — SessionRecord, indexed by updatedAt + titleLower
+ *   sessions   — SessionRecord, indexed by updatedAt + titleLower + exportedAt + exportPath
  *   messages   — MessageRecord, indexed by sessionId + createdAt
  *   settings   — key/value pairs
  *   fileRoots  — FileRootRecord
  *   files      — FileRecord, indexed by rootId, pathLower, ext, updatedAt
  *   chunks     — ChunkRecord, indexed by fileId
  *   terms      — TermRecord, compound key [term, chunkId], indexed by term + chunkId
+ *
+ * v2 migration: adds exportedAt + exportPath indexes to sessions store
  */
 
 import type {
@@ -18,11 +20,14 @@ import type {
   FileRecord,
   ChunkRecord,
   TermRecord,
-  SearchResult
+  OSMDIndex,
 } from "./types";
 
 const DB_NAME = "studio-os-chat-v3";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
+
+/** Settings key for the local OSMD export registry */
+export const EXPORT_INDEX_SETTINGS_KEY = "__chat_export_index__";
 
 let _db: IDBDatabase | null = null;
 
@@ -39,6 +44,18 @@ function openDb(): Promise<IDBDatabase> {
         const s = db.createObjectStore("sessions", { keyPath: "id" });
         s.createIndex("updatedAt", "updatedAt");
         s.createIndex("titleLower", "titleLower");
+        s.createIndex("exportedAt", "exportedAt");
+        s.createIndex("exportPath", "exportPath");
+      } else {
+        // v1 → v2: add export indexes if missing
+        const t = (e.target as IDBOpenDBRequest).transaction;
+        const s = t?.objectStore("sessions");
+        if (s && !s.indexNames.contains("exportedAt")) {
+          s.createIndex("exportedAt", "exportedAt");
+        }
+        if (s && !s.indexNames.contains("exportPath")) {
+          s.createIndex("exportPath", "exportPath");
+        }
       }
 
       // messages
@@ -107,6 +124,14 @@ function put(store: IDBObjectStore, value: unknown): Promise<void> {
   });
 }
 
+function get<T>(store: IDBObjectStore, key: IDBValidKey): Promise<T | null> {
+  return new Promise((resolve, reject) => {
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 function getAll<T>(store: IDBObjectStore): Promise<T[]> {
   return new Promise((resolve, reject) => {
     const req = store.getAll();
@@ -171,6 +196,34 @@ export async function renameSession(
   });
 }
 
+/**
+ * Writes export metadata onto an existing session row in IndexedDB.
+ * Called immediately after exportChat() completes so the session record
+ * carries the canonical export pointer.
+ */
+export async function updateSessionExportRef(
+  sessionId: string,
+  exportRef: {
+    artifactId: string;
+    exportPath: string;
+    exportedAt: number;
+    exportFormat: "osmd@1";
+  }
+): Promise<void> {
+  const db = await openDb();
+  const t = tx(db, "sessions", "readwrite");
+  const store = t.objectStore("sessions");
+  const existing = await get<SessionRecord>(store, sessionId);
+  if (!existing) return;
+  await put(store, {
+    ...existing,
+    exportArtifactId: exportRef.artifactId,
+    exportPath: exportRef.exportPath,
+    exportedAt: exportRef.exportedAt,
+    exportFormat: exportRef.exportFormat,
+  });
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────
 
 export async function putMessages(messages: MessageRecord[]): Promise<void> {
@@ -209,6 +262,23 @@ export async function putSetting(key: string, value: unknown): Promise<void> {
   await put(t.objectStore("settings"), { key, value });
 }
 
+// ── Export index helpers ──────────────────────────────────────────────────
+
+/**
+ * Reads the local OSMD export registry from the settings store.
+ * Returns null if no registry has been written yet.
+ */
+export async function getExportIndex<T = OSMDIndex>(): Promise<T | null> {
+  return getSetting<T>(EXPORT_INDEX_SETTINGS_KEY);
+}
+
+/**
+ * Persists the OSMD export registry into the settings store.
+ */
+export async function putExportIndex(value: unknown): Promise<void> {
+  await putSetting(EXPORT_INDEX_SETTINGS_KEY, value);
+}
+
 // ── File roots ──────────────────────────────────────────────────────────────
 
 export async function putFileRoot(root: FileRootRecord): Promise<void> {
@@ -218,8 +288,7 @@ export async function putFileRoot(root: FileRootRecord): Promise<void> {
 }
 
 export async function listFileRoots(): Promise<FileRootRecord[]> {
-  const db = await openDb();
-  const t = tx(db, "fileRoots");
+  const db = await openDb();\n  const t = tx(db, "fileRoots");
   return getAll<FileRootRecord>(t.objectStore("fileRoots"));
 }
 
@@ -298,7 +367,6 @@ export async function searchChunksByTerms(
 
   const db = await openDb();
 
-  // Gather TF scores per chunk for each query term
   const chunkScores = new Map<string, number>();
 
   for (const term of queryTerms) {
@@ -310,7 +378,6 @@ export async function searchChunksByTerms(
 
   if (!chunkScores.size) return [];
 
-  // Fetch the top-scoring chunks
   const sorted = [...chunkScores.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit);
