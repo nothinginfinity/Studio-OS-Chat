@@ -27,6 +27,7 @@ import type {
   ChatMessage,
   ChatSession,
   ChatSettings,
+  ChatExportRef,
   MessageRecord,
   OllamaMessage,
   SessionRecord,
@@ -42,8 +43,21 @@ function sessionToRecord(s: ChatSession, messageCount: number): SessionRecord {
     titleSource: s.titleSource,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
-    messageCount
+    messageCount,
+    exportArtifactId: s.exportRef?.artifactId,
+    exportPath: s.exportRef?.exportPath,
+    exportedAt: s.exportRef?.exportedAt,
+    exportFormat: s.exportRef?.format,
   };
+}
+
+/**
+ * Derives a slug string from an export path like
+ * "exports/chats/2026-04-19-my-chat_abc12345.osmd"
+ * → "2026-04-19-my-chat_abc12345"
+ */
+function deriveSlugFromExportPath(path: string): string {
+  return path.split("/").pop()?.replace(/\.osmd$/, "") ?? path;
 }
 
 /**
@@ -73,7 +87,6 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [dbReady, setDbReady] = useState(false);
-  // Holds the display names of all currently indexed files.
   const [indexedFilePaths, setIndexedFilePaths] = useState<string[]>([]);
 
   // ── Load indexed file list ────────────────────────────────────────────────
@@ -98,7 +111,18 @@ export function useChat() {
             titleSource: rec.titleSource,
             createdAt: rec.createdAt,
             updatedAt: rec.updatedAt,
-            messages: msgs as ChatMessage[]
+            messages: msgs as ChatMessage[],
+            // Hydrate exportRef from persisted SessionRecord fields
+            exportRef:
+              rec.exportArtifactId && rec.exportPath && rec.exportedAt
+                ? {
+                    artifactId: rec.exportArtifactId,
+                    slug: deriveSlugFromExportPath(rec.exportPath),
+                    exportPath: rec.exportPath,
+                    exportedAt: rec.exportedAt,
+                    format: "osmd@1" as const,
+                  }
+                : undefined,
           };
         })
       );
@@ -178,6 +202,21 @@ export function useChat() {
       )
     );
   }
+
+  /**
+   * Updates React state immediately after exportChat() completes so the
+   * sidebar export badge appears without requiring a reload.
+   * Export orchestration stays in ExportChatButton — this is just the
+   * in-memory state updater.
+   */
+  const markSessionExported = useCallback(
+    (sessionId: string, exportRef: ChatExportRef) => {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, exportRef } : s))
+      );
+    },
+    []
+  );
 
   // ── System prompt with file-index appendix ────────────────────────────────
   const effectiveSystemPrompt = useMemo(() => {
@@ -355,7 +394,6 @@ export function useChat() {
           );
         }
 
-        // Refresh file index so next turn reflects any files ingested this turn
         await refreshFileIndex();
         return;
       }
@@ -463,7 +501,6 @@ export function useChat() {
         );
       }
 
-      // Refresh file index so next turn reflects any files ingested this turn
       await refreshFileIndex();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -485,6 +522,7 @@ export function useChat() {
     createSession,
     setActiveSession,
     renameSession,
+    markSessionExported,
     messages,
     settings,
     setSettings,
