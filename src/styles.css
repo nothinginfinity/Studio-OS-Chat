@@ -173,7 +173,7 @@ button:hover {
   overflow: auto;
 }
 
-/* ── ToolResultCard — file search layout ──────────────────────────────────── */
+/* ── ToolResultCard — file search layout ─────────────────────────────────────── */
 
 .tool-card--files {
   padding: 10px 12px;
@@ -241,7 +241,7 @@ button:hover {
   line-height: 1.5;
 }
 
-/* ── Ollama Status indicator ───────────────────────────────────────────────── */
+/* ── Ollama Status indicator ────────────────────────────────────────────────── */
 
 .ollama-status {
   background: #0d1117;
@@ -321,7 +321,7 @@ button:hover {
   color: #444f66;
 }
 
-/* ── ProviderSettings cards ───────────────────────────────────────────────── */
+/* ── ProviderSettings cards ─────────────────────────────────────────────────── */
 
 .provider-settings {
   display: flex;
@@ -483,7 +483,7 @@ button:hover {
   text-align: center;
 }
 
-/* ── File search results (legacy) ─────────────────────────────────────────── */
+/* ── File search results (legacy) ────────────────────────────────────────────── */
 
 .file-search-results {
   display: flex;
@@ -522,6 +522,198 @@ button:hover {
   font-family: monospace;
   max-height: 200px;
   overflow: auto;
+}
+
+/* ── Prompt History panel ───────────────────────────────────────────────────── */
+
+.prompt-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Search row */
+.prompt-history-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prompt-history-search {
+  flex: 1;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2d3a50;
+  background: #0d1117;
+  color: #f5f7fa;
+}
+
+.prompt-history-search:focus {
+  outline: none;
+  border-color: #2a6aad;
+}
+
+.prompt-history-refresh {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  border-radius: 8px;
+  border: 1px solid #2d3a50;
+  background: #0d1117;
+  color: #6b7a99;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.prompt-history-refresh:hover {
+  background: #1c2431;
+  color: #f5f7fa;
+}
+
+/* Sort row */
+.prompt-history-sort-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-history-count {
+  font-size: 12px;
+  color: #6b7a99;
+}
+
+.prompt-sort-toggle {
+  display: flex;
+  border: 1px solid #2d3a50;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.prompt-sort-btn {
+  flex: 1;
+  padding: 5px 10px;
+  font-size: 12px;
+  border: none;
+  border-radius: 0;
+  background: #0d1117;
+  color: #6b7a99;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.prompt-sort-btn + .prompt-sort-btn {
+  border-left: 1px solid #2d3a50;
+}
+
+.prompt-sort-btn:hover {
+  background: #1c2431;
+  color: #c9d3e8;
+}
+
+.prompt-sort-btn--active {
+  background: #1a3a5c;
+  color: #7ec8ff;
+  font-weight: 600;
+}
+
+.prompt-sort-btn--active:hover {
+  background: #1e4a78;
+}
+
+/* Scrollable list */
+.prompt-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  /* Smooth momentum scroll on iOS */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+/* Empty state */
+.prompt-history-empty {
+  font-size: 13px;
+  color: #444f66;
+  text-align: center;
+  padding: 32px 16px;
+  line-height: 1.6;
+}
+
+/* Prompt card */
+.prompt-card {
+  width: 100%;
+  text-align: left;
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s, background 0.15s;
+  /* Reset button defaults */
+  font: inherit;
+  color: inherit;
+}
+
+.prompt-card:hover {
+  background: #111827;
+  border-color: #2a4a6a;
+}
+
+.prompt-card:active {
+  background: #0f1e30;
+  border-color: #2a6aad;
+}
+
+/* Prompt text — truncate to 3 lines */
+.prompt-card-content {
+  font-size: 13px;
+  color: #c9d3e8;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* Meta row: session title + relative time */
+.prompt-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-card-session {
+  font-size: 11px;
+  color: #7ec8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+
+.prompt-card-time {
+  font-size: 11px;
+  color: #444f66;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 @media (max-width: 900px) {
