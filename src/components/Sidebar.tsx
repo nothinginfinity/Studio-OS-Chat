@@ -9,7 +9,7 @@ import { IngestDropZone } from "./IngestDropZone";
 import { ExportChatButton } from "./ExportChatButton";
 import { GitHubSettings } from "./GitHubSettings";
 import { SpacesPanel } from "./SpacesPanel";
-import { PromptHistory } from "./PromptHistory";
+import { PromptHistorySheet } from "./PromptHistorySheet";
 import { PromptLibrary } from "./PromptLibrary";
 
 interface SidebarProps {
@@ -27,7 +27,7 @@ interface SidebarProps {
   onCreateSessionWithDraft: (text: string) => Promise<unknown>;
 }
 
-type Tab = "chats" | "prompts" | "library" | "files" | "spaces" | "settings";
+type Tab = "chats" | "library" | "files" | "spaces" | "settings";
 
 export function Sidebar({
   settings,
@@ -44,6 +44,7 @@ export function Sidebar({
   onCreateSessionWithDraft,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const activeSession =
     sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -54,12 +55,12 @@ export function Sidebar({
 
   function handleOpenSessionFromHistory(sessionId: string) {
     onSelectSession(sessionId);
-    setTab("chats");
+    setHistoryOpen(false);
   }
 
   async function handleNewChatFromPrompt(text: string) {
     await onCreateSessionWithDraft(text);
-    setTab("chats");
+    setHistoryOpen(false);
   }
 
   return (
@@ -77,8 +78,8 @@ export function Sidebar({
           Chats
         </button>
         <button
-          className={tab === "prompts" ? "tab active" : "tab"}
-          onClick={() => setTab("prompts")}
+          className="tab"
+          onClick={() => setHistoryOpen(true)}
           aria-label="Prompt history"
         >
           History
@@ -189,17 +190,6 @@ export function Sidebar({
         </>
       )}
 
-      {/* Prompt History tab */}
-      {tab === "prompts" && (
-        <PromptHistory
-          active={tab === "prompts"}
-          onOpenSession={handleOpenSessionFromHistory}
-          onInsertPrompt={onInsertPrompt}
-          onReusePrompt={onReusePrompt}
-          onNewChatFromPrompt={handleNewChatFromPrompt}
-        />
-      )}
-
       {/* Prompt Library tab */}
       {tab === "library" && (
         <PromptLibrary
@@ -251,6 +241,15 @@ export function Sidebar({
           <GitHubSettings />
         </>
       )}
+
+      {/* Prompt History Sheet — rendered as overlay */}
+      <PromptHistorySheet
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onOpenSession={handleOpenSessionFromHistory}
+        onReusePrompt={onReusePrompt}
+        onCreateSessionWithDraft={handleNewChatFromPrompt}
+      />
     </aside>
   );
 }
