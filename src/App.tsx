@@ -9,6 +9,7 @@ export default function App() {
     createSession,
     setActiveSession,
     renameSession,
+    markSessionExported,
     messages,
     settings,
     setSettings,
@@ -38,6 +39,7 @@ export default function App() {
         onSelectSession={setActiveSession}
         onNewSession={() => createSession()}
         onRenameSession={renameSession}
+        onSessionExported={markSessionExported}
       />
       <ChatWindow
         messages={messages}
