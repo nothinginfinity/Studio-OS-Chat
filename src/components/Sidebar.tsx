@@ -3,6 +3,7 @@ import type { ChatSettings, ChatSession } from "../lib/types";
 import { ModelSelector } from "./ModelSelector";
 import { SessionTitleEditor } from "./SessionTitleEditor";
 import { FilesPanel } from "./FilesPanel";
+import { OllamaStatus } from "./OllamaStatus";
 
 interface SidebarProps {
   settings: ChatSettings;
@@ -32,6 +33,8 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <h1>Local AI</h1>
+
+      <OllamaStatus settings={settings} />
 
       <div className="sidebar-tabs">
         <button

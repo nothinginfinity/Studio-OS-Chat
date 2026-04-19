@@ -134,6 +134,137 @@ button:hover {
   padding: 12px;
 }
 
+/* ── Ollama Status indicator ───────────────────────────────────────────────── */
+
+.ollama-status {
+  background: #0d1117;
+  border: 1px solid #222833;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.ollama-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ollama-status-dot {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.ollama-status-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.ollama-status-recheck {
+  border: none;
+  background: transparent;
+  color: #6b7a99;
+  padding: 2px 6px;
+  font-size: 15px;
+  cursor: pointer;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.ollama-status-recheck:hover {
+  background: #1c2431;
+  color: #f5f7fa;
+}
+
+.ollama-status-error {
+  color: #ff9b9b;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.ollama-status-models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ollama-model-chip {
+  background: #1c2431;
+  border: 1px solid #2d3a50;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: #8fa3c8;
+  white-space: nowrap;
+}
+
+.ollama-model-chip.active {
+  background: #1a3a5c;
+  border-color: #2a6aad;
+  color: #7ec8ff;
+  font-weight: 600;
+}
+
+.ollama-status-time {
+  font-size: 11px;
+  color: #444f66;
+}
+
+/* ── File search results ──────────────────────────────────────────────────── */
+
+.file-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-search-header {
+  font-size: 13px;
+  color: #8fa3c8;
+  margin-bottom: 4px;
+}
+
+.snippet-card {
+  background: #0d1117;
+  border: 1px solid #222833;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.snippet-card.snippet-empty {
+  color: #6b7a99;
+  font-size: 13px;
+}
+
+.snippet-path {
+  font-size: 12px;
+  color: #7ec8ff;
+  font-family: monospace;
+}
+
+.snippet-score {
+  font-size: 11px;
+  color: #444f66;
+}
+
+.snippet-text {
+  font-size: 12px;
+  color: #c9d3e8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: monospace;
+  max-height: 200px;
+  overflow: auto;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
