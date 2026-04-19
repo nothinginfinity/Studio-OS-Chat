@@ -4,8 +4,10 @@
  * File upload drop zone for OCR + PDF ingestion.
  * - Drag-and-drop or click-to-browse
  * - Routes to ingestImageAsMarkdown() for images, ingestPdfAsMarkdown() for PDFs
- * - After ingestion, indexes content via indexFile() so file_search works
+ * - PDFs: ingestPdfAsMarkdown() handles its own indexing internally — do NOT call indexFile() again
+ * - Images: OCR output is wrapped as a synthetic .md file and indexed via indexFile()
  * - Mode selector for OCR: screenshot / document / code / receipt
+ * - Auto-selects "document" mode when a multi-page image (non-PDF) is detected
  * - Shows per-file progress and result status
  */
 import { useState, useRef, useCallback } from "react";
@@ -50,14 +52,14 @@ export function IngestDropZone() {
     updateFile(file.name, { status: "processing" });
     try {
       if (isPdf) {
+        // ingestPdfAsMarkdown writes its own FileRecord, chunks, and term
+        // entries to IndexedDB. Do NOT call indexFile() here — that would
+        // create a second, duplicate entry under a different fileId.
         const result = await ingestPdfAsMarkdown(file, DEFAULT_ROOT);
         if (!result) {
           updateFile(file.name, { status: "error", message: "PDF extraction returned no content" });
           return;
         }
-
-        // Wire into searchable chunk index so file_search can find this content
-        await indexFile(file, DEFAULT_ROOT, file.name);
 
         updateFile(file.name, {
           status: "done",
@@ -66,13 +68,17 @@ export function IngestDropZone() {
           } ✓`,
         });
       } else {
-        const result = await ingestImageAsMarkdown(file, DEFAULT_ROOT, mode);
+        // Auto-select "document" mode for images that look like document scans
+        // (large files >200 KB are likely scanned pages, not UI screenshots)
+        const effectiveMode: OCRMode =
+          mode === "screenshot" && file.size > 200_000 ? "document" : mode;
+
+        const result = await ingestImageAsMarkdown(file, DEFAULT_ROOT, effectiveMode);
         if (!result) {
           updateFile(file.name, { status: "error", message: "OCR returned no content" });
           return;
         }
 
-        // Wire OCR output into searchable chunk index
         // Wrap the markdown text as a synthetic File so indexFile can chunk + store it
         const markdownBlob = new Blob([result.markdown], { type: "text/plain" });
         const syntheticFile = new File([markdownBlob], file.name + ".md", {
