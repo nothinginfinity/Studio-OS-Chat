@@ -34,6 +34,7 @@ body {
   flex-direction: column;
   gap: 16px;
   background: #12161d;
+  overflow-y: auto;
 }
 
 .chat-window {
@@ -117,6 +118,33 @@ button:hover {
   background: #273246;
 }
 
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.btn-primary {
+  background: #1a3a5c;
+  border-color: #2a6aad;
+  color: #7ec8ff;
+}
+.btn-primary:hover { background: #1e4a78; }
+
+.btn-danger {
+  background: #3a1a1a;
+  border-color: #8b2020;
+  color: #ff9b9b;
+}
+.btn-danger:hover { background: #4a2020; }
+
+.btn-accent {
+  background: #1a3a2a;
+  border-color: #2a7a4a;
+  color: #7effc0;
+}
+.btn-accent:hover { background: #1e4a36; }
+
 .error,
 .error-banner {
   color: #ff9b9b;
@@ -132,6 +160,85 @@ button:hover {
   border: 1px solid #253045;
   border-radius: 12px;
   padding: 12px;
+  font-size: 13px;
+}
+
+.tool-card pre {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  color: #8fa3c8;
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* ── ToolResultCard — file search layout ──────────────────────────────────── */
+
+.tool-card--files {
+  padding: 10px 12px;
+}
+
+.tool-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tool-card-icon {
+  font-size: 14px;
+}
+
+.tool-card-header strong {
+  flex: 1;
+  font-size: 13px;
+  color: #c9d3e8;
+}
+
+.tool-card-count {
+  font-size: 11px;
+  color: #6b7a99;
+  background: #1c2431;
+  border: 1px solid #2d3a50;
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.tool-card-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-file-result {
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-file-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7ec8ff;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-file-snippet {
+  font-size: 12px;
+  color: #8fa3c8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 80px;
+  overflow: hidden;
+  line-height: 1.5;
 }
 
 /* ── Ollama Status indicator ───────────────────────────────────────────────── */
@@ -214,7 +321,169 @@ button:hover {
   color: #444f66;
 }
 
-/* ── File search results ──────────────────────────────────────────────────── */
+/* ── ProviderSettings cards ───────────────────────────────────────────────── */
+
+.provider-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7a99;
+  margin-bottom: 2px;
+}
+
+.provider-settings-note {
+  font-size: 12px;
+  color: #6b7a99;
+  margin: 0 0 4px;
+  line-height: 1.5;
+}
+
+.provider-card {
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.provider-card--active {
+  border-color: #2a6aad;
+  background: #0d1620;
+}
+
+.provider-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  gap: 8px;
+  user-select: none;
+}
+
+.provider-card-header:hover {
+  background: #111827;
+}
+
+.provider-card-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.provider-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.provider-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f4;
+}
+
+.provider-models {
+  font-size: 11px;
+  color: #6b7a99;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.provider-card-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.provider-key-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3a4a60;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.provider-key-dot--set {
+  background: #2a9a5a;
+}
+
+.provider-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: #1a3a5c;
+  border: 1px solid #2a6aad;
+  color: #7ec8ff;
+  border-radius: 8px;
+  padding: 1px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.provider-chevron {
+  font-size: 9px;
+  color: #6b7a99;
+}
+
+.provider-card-body {
+  border-top: 1px solid #1e2a3a;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-key-input {
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.provider-key-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.provider-model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-model-label {
+  font-size: 12px;
+  color: #6b7a99;
+  flex-shrink: 0;
+}
+
+.provider-model-select {
+  flex: 1;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.provider-activate-btn {
+  width: 100%;
+  text-align: center;
+}
+
+.provider-active-note {
+  font-size: 12px;
+  color: #2a9a5a;
+  text-align: center;
+}
+
+/* ── File search results (legacy) ─────────────────────────────────────────── */
 
 .file-search-results {
   display: flex;
@@ -238,20 +507,10 @@ button:hover {
   gap: 4px;
 }
 
-.snippet-card.snippet-empty {
-  color: #6b7a99;
-  font-size: 13px;
-}
-
 .snippet-path {
   font-size: 12px;
   color: #7ec8ff;
   font-family: monospace;
-}
-
-.snippet-score {
-  font-size: 11px;
-  color: #444f66;
 }
 
 .snippet-text {
