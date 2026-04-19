@@ -23,6 +23,8 @@ interface SidebarProps {
   onRenameSession: (id: string, title: string) => void;
   onSessionExported: (sessionId: string, exportRef: ChatExportRef) => void;
   onInsertPrompt?: (content: string) => void;
+  onReusePrompt: (text: string) => void;
+  onCreateSessionWithDraft: (text: string) => Promise<unknown>;
 }
 
 type Tab = "chats" | "prompts" | "library" | "files" | "spaces" | "settings";
@@ -38,6 +40,8 @@ export function Sidebar({
   onRenameSession,
   onSessionExported,
   onInsertPrompt,
+  onReusePrompt,
+  onCreateSessionWithDraft,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
 
@@ -50,6 +54,11 @@ export function Sidebar({
 
   function handleOpenSessionFromHistory(sessionId: string) {
     onSelectSession(sessionId);
+    setTab("chats");
+  }
+
+  async function handleNewChatFromPrompt(text: string) {
+    await onCreateSessionWithDraft(text);
     setTab("chats");
   }
 
@@ -186,6 +195,8 @@ export function Sidebar({
           active={tab === "prompts"}
           onOpenSession={handleOpenSessionFromHistory}
           onInsertPrompt={onInsertPrompt}
+          onReusePrompt={onReusePrompt}
+          onNewChatFromPrompt={handleNewChatFromPrompt}
         />
       )}
 
