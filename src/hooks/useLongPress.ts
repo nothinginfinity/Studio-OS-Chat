@@ -50,7 +50,8 @@ export function useLongPress({
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
-      longPressTriggeredRef.current = false;
+      // Defer reset so any onClick from the PREVIOUS interaction can still read true
+      setTimeout(() => { longPressTriggeredRef.current = false; }, 0);
       startRef.current = { x: e.clientX, y: e.clientY };
       setIsPressed(true);
       onPressStart?.();
@@ -58,6 +59,7 @@ export function useLongPress({
       timerRef.current = window.setTimeout(() => {
         longPressTriggeredRef.current = true;
         setIsPressed(false);
+        timerRef.current = null;
         onLongPress();
       }, delay);
     },
@@ -78,6 +80,7 @@ export function useLongPress({
   );
 
   const onPointerUp = useCallback(() => {
+    // Only treat as cancelled if the long press did NOT fire
     clear(!longPressTriggeredRef.current);
   }, [clear]);
 
