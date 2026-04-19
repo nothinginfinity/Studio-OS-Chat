@@ -36,6 +36,10 @@ export interface ChatSettings {
   ollamaBaseUrl: string;
   model: string;
   systemPrompt: string;
+  /** Active provider id — e.g. "groq", "openai", "ollama" */
+  provider: string;
+  /** API key for the active provider (not used for Ollama) */
+  apiKey: string;
 }
 
 // ── IndexedDB records ─────────────────────────────────────────────────────────
