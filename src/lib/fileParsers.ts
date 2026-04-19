@@ -12,7 +12,7 @@
  * Call isPdfFile()        to route to extractPdfText().
  */
 
-// ── Extension sets ─────────────────────────────────────────────────────────────
+// ── Extension sets ──────────────────────────────────────────────────────────────────
 
 const TEXT_EXTENSIONS = new Set([
   ".txt", ".md", ".json",
@@ -35,7 +35,7 @@ const IMAGE_EXTENSIONS = new Set([
 const MAX_TEXT_BYTES  = 3  * 1024 * 1024;
 const MAX_BINARY_BYTES = 50 * 1024 * 1024;
 
-// ── Public predicates ──────────────────────────────────────────────────────────
+// ── Public predicates ───────────────────────────────────────────────────────────────
 
 export function fileExt(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -59,7 +59,7 @@ export function isSupportedFile(name: string): boolean {
   return isTextFile(name) || isPdfFile(name) || isImageFile(name);
 }
 
-// ── Text parser (unchanged from v3) ───────────────────────────────────────────
+// ── Text parser (unchanged from v3) ─────────────────────────────────────────────
 
 export async function readSupportedFile(file: File): Promise<string | null> {
   if (!isTextFile(file.name)) return null;
@@ -77,7 +77,7 @@ export async function readSupportedFile(file: File): Promise<string | null> {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-// ── PDF parser (PDF.js via cdnjs CDN) ─────────────────────────────────────────
+// ── PDF parser (PDF.js via cdnjs CDN) ─────────────────────────────────────────────
 
 // Using `any` here avoids a static `typeof import('pdfjs-dist')` annotation
 // which would require pdfjs-dist in package.json and break the Vite build.
@@ -101,11 +101,11 @@ async function getPdfjsLib(): Promise<PdfjsLib> {
     return _pdfjsCache;
   }
 
-  // Dynamic CDN import — @vite-ignore prevents Vite from trying to bundle it
-  const mod: PdfjsLib = await import(
-    /* @vite-ignore */
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs"
-  );
+  // Route through a plain string variable so TSC skips module resolution.
+  // @vite-ignore prevents Vite from bundling it — loaded from CDN at runtime.
+  const url: string = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mod: PdfjsLib = await (import(/* @vite-ignore */ url as any));
 
   // Point the worker at the matching CDN worker bundle
   mod.GlobalWorkerOptions.workerSrc =
@@ -153,7 +153,7 @@ export async function extractPdfText(file: File): Promise<string | null> {
   }
 }
 
-// ── Image passthrough note ─────────────────────────────────────────────────────
+// ── Image passthrough note ────────────────────────────────────────────────────────────────
 //
 // Images are NOT parsed here. readSupportedFile() returns null for images.
 // The OCR pipeline in src/lib/ocr.ts accepts a File directly and produces
