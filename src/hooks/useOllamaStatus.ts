@@ -11,7 +11,8 @@ export interface OllamaStatus {
   recheck: () => void;
 }
 
-export function useOllamaStatus(baseUrl: string): OllamaStatus {
+/** Pass null as baseUrl when Ollama is not the active provider — disables all polling. */
+export function useOllamaStatus(baseUrl: string | null): OllamaStatus {
   const [state, setState] = useState<OllamaConnectionState>("checking");
   const [models, setModels] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
@@ -21,6 +22,9 @@ export function useOllamaStatus(baseUrl: string): OllamaStatus {
   const recheck = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
+    // No baseUrl — cloud provider is active, skip all network calls
+    if (!baseUrl) return;
+
     let active = true;
     setState("checking");
     setErrorMessage("");
