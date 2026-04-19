@@ -10,6 +10,7 @@ import { ExportChatButton } from "./ExportChatButton";
 import { GitHubSettings } from "./GitHubSettings";
 import { SpacesPanel } from "./SpacesPanel";
 import { PromptHistory } from "./PromptHistory";
+import { PromptLibrary } from "./PromptLibrary";
 
 interface SidebarProps {
   settings: ChatSettings;
@@ -21,9 +22,10 @@ interface SidebarProps {
   onNewSession: () => void;
   onRenameSession: (id: string, title: string) => void;
   onSessionExported: (sessionId: string, exportRef: ChatExportRef) => void;
+  onInsertPrompt?: (content: string) => void;
 }
 
-type Tab = "chats" | "prompts" | "files" | "spaces" | "settings";
+type Tab = "chats" | "prompts" | "library" | "files" | "spaces" | "settings";
 
 export function Sidebar({
   settings,
@@ -35,6 +37,7 @@ export function Sidebar({
   onNewSession,
   onRenameSession,
   onSessionExported,
+  onInsertPrompt,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
 
@@ -69,7 +72,14 @@ export function Sidebar({
           onClick={() => setTab("prompts")}
           aria-label="Prompt history"
         >
-          Prompts
+          History
+        </button>
+        <button
+          className={tab === "library" ? "tab active" : "tab"}
+          onClick={() => setTab("library")}
+          aria-label="Prompt library"
+        >
+          Library
         </button>
         <button
           className={tab === "files" ? "tab active" : "tab"}
@@ -170,11 +180,20 @@ export function Sidebar({
         </>
       )}
 
-      {/* Prompts tab */}
+      {/* Prompt History tab */}
       {tab === "prompts" && (
         <PromptHistory
           active={tab === "prompts"}
           onOpenSession={handleOpenSessionFromHistory}
+          onInsertPrompt={onInsertPrompt}
+        />
+      )}
+
+      {/* Prompt Library tab */}
+      {tab === "library" && (
+        <PromptLibrary
+          active={tab === "library"}
+          onInsertPrompt={onInsertPrompt}
         />
       )}
 

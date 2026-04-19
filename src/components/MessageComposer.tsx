@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { promotePromptToAsset } from "../lib/prompts";
 
 interface Props {
@@ -6,13 +6,31 @@ interface Props {
   disabled?: boolean;
   /** Optional: session id used to tag saved prompt assets */
   sessionId?: string;
+  /** Text injected from an external source (e.g. PromptLibrary insert) */
+  externalText?: string;
+  /** Called once externalText has been applied so the parent can clear it */
+  onExternalTextConsumed?: () => void;
 }
 
-export function MessageComposer({ onSend, disabled, sessionId }: Props) {
+export function MessageComposer({
+  onSend,
+  disabled,
+  sessionId,
+  externalText,
+  onExternalTextConsumed,
+}: Props) {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Apply injected text from parent
+  useEffect(() => {
+    if (externalText) {
+      setText(externalText);
+      onExternalTextConsumed?.();
+    }
+  }, [externalText, onExternalTextConsumed]);
 
   async function handleSend() {
     const value = text.trim();
