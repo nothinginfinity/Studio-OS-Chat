@@ -1,10 +1,10 @@
 /**
- * storage.ts — v3: settings only.
- * Sessions and messages now live in IndexedDB via db.ts.
- * This module is retained only for synchronous settings access
- * during initial hook setup before the async DB load completes.
+ * storage.ts — v4: settings with multi-provider support.
+ * Per-provider API keys live in providers.ts (loadApiKey/saveApiKey).
+ * This module handles the active provider + model selection in settings.
  */
 import type { ChatSettings } from "./types";
+import { loadApiKey } from "./providers";
 
 const SETTINGS_KEY = "local-ai-pwa:settings";
 
@@ -12,17 +12,31 @@ export function loadSettings(): ChatSettings {
   const raw = localStorage.getItem(SETTINGS_KEY);
   const defaults: ChatSettings = {
     ollamaBaseUrl: "http://localhost:11434",
-    model: "llama3.2",
-    systemPrompt: "You are a helpful local AI assistant."
+    model: "llama-3.3-70b-versatile",
+    systemPrompt: "You are a helpful AI assistant.",
+    provider: "groq",
+    apiKey: loadApiKey("groq")
   };
   if (!raw) return defaults;
   try {
-    return { ...defaults, ...(JSON.parse(raw) as Partial<ChatSettings>) };
+    const stored = JSON.parse(raw) as Partial<ChatSettings>;
+    const provider = stored.provider ?? defaults.provider;
+    return {
+      ...defaults,
+      ...stored,
+      provider,
+      // Always re-read the key from its dedicated localStorage slot
+      // so saving a key in ProviderSettings is immediately reflected.
+      apiKey: loadApiKey(provider)
+    };
   } catch {
     return defaults;
   }
 }
 
 export function saveSettings(settings: ChatSettings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // Don't persist apiKey inside the settings blob —
+  // it lives in its own key via providers.ts saveApiKey.
+  const { apiKey: _ignored, ...rest } = settings;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(rest));
 }
