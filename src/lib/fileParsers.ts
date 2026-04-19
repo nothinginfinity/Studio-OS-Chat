@@ -79,27 +79,30 @@ export async function readSupportedFile(file: File): Promise<string | null> {
 
 // ── PDF parser (PDF.js via cdnjs CDN) ─────────────────────────────────────────
 
+// Using `any` here avoids a static `typeof import('pdfjs-dist')` annotation
+// which would require pdfjs-dist in package.json and break the Vite build.
+// PDF.js is loaded from CDN at runtime only.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PdfjsLib = any;
+
+let _pdfjsCache: PdfjsLib | null = null;
+
 /**
- * Lazily loads PDF.js from cdnjs and caches the module reference.
- * Uses the legacy build that exposes `pdfjsLib` on globalThis.
+ * Lazily loads PDF.js from cdnjs CDN and caches the module reference.
+ * No static pdfjs-dist dependency required.
  */
-async function getPdfjsLib(): Promise<typeof import("pdfjs-dist")> {
+async function getPdfjsLib(): Promise<PdfjsLib> {
+  if (_pdfjsCache) return _pdfjsCache;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = globalThis as any;
-  if (g.pdfjsLib) return g.pdfjsLib;
+  if (g.pdfjsLib) {
+    _pdfjsCache = g.pdfjsLib;
+    return _pdfjsCache;
+  }
 
-  await new Promise<void>((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs";
-    s.type = "module";
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load PDF.js"));
-    document.head.appendChild(s);
-  });
-
-  // pdf.min.mjs is an ES module — import it dynamically so we get the export
-  const mod = await import(
+  // Dynamic CDN import — @vite-ignore prevents Vite from trying to bundle it
+  const mod: PdfjsLib = await import(
     /* @vite-ignore */
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs"
   );
@@ -108,6 +111,7 @@ async function getPdfjsLib(): Promise<typeof import("pdfjs-dist")> {
   mod.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs";
 
+  _pdfjsCache = mod;
   g.pdfjsLib = mod;
   return mod;
 }
