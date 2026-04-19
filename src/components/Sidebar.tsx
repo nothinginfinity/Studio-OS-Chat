@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { ChatSettings, ChatSession, ChatExportRef } from "../lib/types";
 import { ModelSelector } from "./ModelSelector";
 import { SessionTitleEditor } from "./SessionTitleEditor";
@@ -11,6 +11,8 @@ import { GitHubSettings } from "./GitHubSettings";
 import { SpacesPanel } from "./SpacesPanel";
 import { PromptHistorySheet } from "./PromptHistorySheet";
 import { PromptLibrary } from "./PromptLibrary";
+import { ChatActionSheet } from "./ChatActionSheet";
+import { useLongPress } from "../hooks/useLongPress";
 
 interface SidebarProps {
   settings: ChatSettings;
@@ -25,10 +27,70 @@ interface SidebarProps {
   onInsertPrompt?: (content: string) => void;
   onReusePrompt: (text: string) => void;
   onCreateSessionWithDraft: (text: string) => Promise<unknown>;
+  onDeleteSession?: (sessionId: string) => void;
 }
 
 type Tab = "chats" | "library" | "files" | "spaces" | "settings";
 
+// ── Inner component: one long-pressable session row ───────────────────────────
+function SessionRow({
+  session,
+  isActive,
+  onTap,
+  onLongPress,
+}: {
+  session: ChatSession;
+  isActive: boolean;
+  onTap: (session: ChatSession) => void;
+  onLongPress: (session: ChatSession) => void;
+}) {
+  const { bind, isPressed, longPressTriggeredRef } = useLongPress({
+    onLongPress: () => onLongPress(session),
+  });
+
+  function handleClick() {
+    if (longPressTriggeredRef.current) return;
+    onTap(session);
+  }
+
+  return (
+    <div
+      className={[
+        "session",
+        isActive ? "active" : "",
+        isPressed ? "lp-item--pressed" : "",
+        "lp-item",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open chat: ${session.title}`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") handleClick();
+      }}
+      {...bind}
+    >
+      <div className="session-row-meta">
+        <SessionTitleEditor
+          title={session.title}
+          onSave={(title) => { /* handled via sheet rename */ }}
+        />
+        {session.exportRef?.exportPath ? (
+          <span
+            className="session-export-badge"
+            title={session.exportRef.exportPath}
+          >
+            Exported
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ── Main sidebar ──────────────────────────────────────────────────────────────
 export function Sidebar({
   settings,
   setSettings,
@@ -42,9 +104,14 @@ export function Sidebar({
   onInsertPrompt,
   onReusePrompt,
   onCreateSessionWithDraft,
+  onDeleteSession,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [activeSheetSession, setActiveSheetSession] = useState<ChatSession | null>(null);
+
+  // Ref to the ExportChatButton trigger — we programmatically fire export from sheet
+  const exportTriggerRef = useRef<{ export: (sessionId: string) => void } | null>(null);
 
   const activeSession =
     sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -61,6 +128,38 @@ export function Sidebar({
   async function handleNewChatFromPrompt(text: string) {
     await onCreateSessionWithDraft(text);
     setHistoryOpen(false);
+  }
+
+  // ChatActionSheet handlers
+  function handleSheetOpen(sessionId: string) {
+    onSelectSession(sessionId);
+  }
+
+  function handleSheetRename(sessionId: string) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const next = window.prompt("Rename chat:", session.title);
+    if (next && next.trim()) onRenameSession(sessionId, next.trim());
+  }
+
+  function handleSheetExport(sessionId: string) {
+    onSelectSession(sessionId);
+    // Export button in the chats tab handles the actual export;
+    // selecting the session is sufficient to make ExportChatButton active.
+    setTab("chats");
+  }
+
+  function handleSheetCopyExportPath(path: string) {
+    navigator.clipboard.writeText(path).catch(() => {});
+  }
+
+  function handleSheetDelete(sessionId: string) {
+    if (onDeleteSession) {
+      onDeleteSession(sessionId);
+    } else {
+      // Stub until Commit 3 wires deleteSession into useChat
+      console.info("[ChatActionSheet] delete stub — sessionId:", sessionId);
+    }
   }
 
   return (
@@ -119,28 +218,13 @@ export function Sidebar({
 
           <div className="session-list">
             {sessions.map((session) => (
-              <div
+              <SessionRow
                 key={session.id}
-                className={
-                  session.id === activeSessionId ? "session active" : "session"
-                }
-                onClick={() => onSelectSession(session.id)}
-              >
-                <div className="session-row-meta">
-                  <SessionTitleEditor
-                    title={session.title}
-                    onSave={(title) => onRenameSession(session.id, title)}
-                  />
-                  {session.exportRef?.exportPath ? (
-                    <span
-                      className="session-export-badge"
-                      title={session.exportRef.exportPath}
-                    >
-                      Exported
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+                session={session}
+                isActive={session.id === activeSessionId}
+                onTap={(s) => onSelectSession(s.id)}
+                onLongPress={(s) => setActiveSheetSession(s)}
+              />
             ))}
           </div>
 
@@ -242,13 +326,24 @@ export function Sidebar({
         </>
       )}
 
-      {/* Prompt History Sheet — rendered as overlay */}
+      {/* Prompt History Sheet */}
       <PromptHistorySheet
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         onOpenSession={handleOpenSessionFromHistory}
         onReusePrompt={onReusePrompt}
         onCreateSessionWithDraft={handleNewChatFromPrompt}
+      />
+
+      {/* Chat Action Sheet — opened by long-press on any session row */}
+      <ChatActionSheet
+        session={activeSheetSession}
+        onClose={() => setActiveSheetSession(null)}
+        onOpen={handleSheetOpen}
+        onRename={handleSheetRename}
+        onExport={handleSheetExport}
+        onCopyExportPath={handleSheetCopyExportPath}
+        onDelete={handleSheetDelete}
       />
     </aside>
   );
