@@ -1,6 +1,13 @@
 /* ================================================================
-   PROMPT HISTORY SHEET + PROMPT ACTION SHEET
-   Both rendered via React portal into document.body
+   SHARED SHEET PRIMITIVES
+   ActionSheetBase, PromptHistorySheet, PromptActionSheet
+   All rendered via React portal into document.body.
+
+   Naming convention:
+     .sheet-*          → history/list sheet (lower layer, z-index 1000)
+     .action-sheet-*   → action sheet (upper layer, z-index 1100)
+   Future sheets (ChatActionSheet, FileActionSheet, etc.) reuse
+   .action-sheet-* classes from this file.
 ================================================================ */
 
 @keyframes sheet-backdrop-in {
@@ -13,7 +20,8 @@
   to   { transform: translateY(0); }
 }
 
-/* Prompt History Sheet backdrop */
+/* ── History / list sheet (z-index set inline via Sidebar) ─────── */
+
 .sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -104,7 +112,8 @@
   line-height: 1.6;
 }
 
-/* PromptSearchBar */
+/* ── PromptSearchBar ───────────────────────────────────────────── */
+
 .prompt-search-bar {
   display: flex;
   align-items: center;
@@ -142,7 +151,8 @@
 }
 .prompt-search-refresh:hover { background: #1c2431; color: #f5f7fa; }
 
-/* PromptRow */
+/* ── PromptRow ─────────────────────────────────────────────────── */
+
 .prompt-history-item {
   background: #0d1117;
   border: 1px solid #1e2a3a;
@@ -176,13 +186,15 @@
 .prompt-history-item-time { font-size: 11px; color: #444f66; white-space: nowrap; flex-shrink: 0; }
 
 /* ================================================================
-   PROMPT ACTION SHEET (z-index 1100, above history sheet)
+   ACTION SHEET — shared by PromptActionSheet, ChatActionSheet,
+   FileActionSheet, and any future category sheet.
+   ActionSheetBase sets z-index inline; backdrop color is shared.
 ================================================================ */
 
 .action-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  /* z-index set inline by ActionSheetBase */
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
@@ -200,13 +212,17 @@
   overflow-y: auto;
 }
 
+/* Handle — used in both sheet layers */
 .action-sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: #2d3a50; margin: 10px auto 12px; }
 
+/* Detail block — title/meta above action rows */
 .action-sheet-detail { padding: 0 16px 12px; }
 .action-sheet-detail-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.action-sheet-detail-title { font-size: 15px; font-weight: 600; color: #e2e8f4; }
 .action-sheet-detail-session { font-size: 12px; font-weight: 600; color: #7ec8ff; }
 .action-sheet-detail-time { font-size: 11px; color: #444f66; }
 .action-sheet-detail-model { font-size: 11px; color: #6b7a99; background: #1c2431; border: 1px solid #2d3a50; border-radius: 6px; padding: 1px 6px; font-family: monospace; }
+.action-sheet-detail-badge { font-size: 11px; color: #4ade80; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.25); border-radius: 6px; padding: 1px 6px; }
 
 .action-sheet-detail-text {
   font-size: 14px;
@@ -219,6 +235,7 @@
 
 .action-sheet-divider { height: 1px; background: #222833; margin: 4px 0; }
 
+/* Action rows */
 .action-sheet-actions { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 4px; }
 
 .action-sheet-btn {
@@ -237,12 +254,16 @@
 }
 .action-sheet-btn:hover { background: #1c2431; }
 .action-sheet-btn:active { background: #253045; }
+.action-sheet-btn--destructive { color: #f87171; }
+.action-sheet-btn--destructive:hover { background: rgba(248,113,113,0.08); }
 
 .action-sheet-btn-icon { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; color: #7ec8ff; }
+.action-sheet-btn--destructive .action-sheet-btn-icon { color: #f87171; }
 .action-sheet-btn-label { display: flex; flex-direction: column; gap: 2px; }
 .action-sheet-btn-label strong { font-size: 14px; font-weight: 500; color: #f5f7fa; }
 .action-sheet-btn-hint { font-size: 12px; color: #6b7a99; }
 
+/* Cancel button */
 .action-sheet-cancel {
   display: block;
   width: calc(100% - 32px);
@@ -258,3 +279,15 @@
   cursor: pointer;
 }
 .action-sheet-cancel:hover { background: #253045; color: #f5f7fa; }
+
+/* ── Long-press list item — shared pressed state ───────────────── */
+/* Apply .lp-item to any list row that uses useLongPress */
+.lp-item {
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.1s ease, background 0.1s ease;
+}
+.lp-item--pressed {
+  transform: scale(0.97);
+  background: #0f1e30;
+}

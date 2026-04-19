@@ -1,4 +1,4 @@
-import { createPortal } from "react-dom";
+import { ActionSheetBase } from "./ActionSheetBase";
 import type { PromptHistoryItem } from "../lib/types";
 
 function relativeTime(ts: number): string {
@@ -32,82 +32,69 @@ export function PromptActionSheet({
 }: Props) {
   if (!prompt) return null;
 
-  function handleBackdrop(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) onClose();
-  }
+  return (
+    <ActionSheetBase onBackdropClick={onClose} ariaLabel="Prompt actions" zIndex={1100}>
+      <div className="action-sheet-handle" />
 
-  return createPortal(
-    <div
-      className="action-sheet-backdrop"
-      onClick={handleBackdrop}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Prompt actions"
-    >
-      <div className="action-sheet">
-        <div className="action-sheet-handle" />
-
-        {/* Full prompt detail */}
-        <div className="action-sheet-detail">
-          <div className="action-sheet-detail-meta">
-            <span className="action-sheet-detail-session">{prompt.sessionTitle}</span>
-            <span className="action-sheet-detail-time">{relativeTime(prompt.createdAt)}</span>
-            {prompt.model && (
-              <span className="action-sheet-detail-model">{prompt.model}</span>
-            )}
-          </div>
-          <p className="action-sheet-detail-text">{prompt.promptText}</p>
+      {/* Prompt detail */}
+      <div className="action-sheet-detail">
+        <div className="action-sheet-detail-meta">
+          <span className="action-sheet-detail-session">{prompt.sessionTitle}</span>
+          <span className="action-sheet-detail-time">{relativeTime(prompt.createdAt)}</span>
+          {prompt.model && (
+            <span className="action-sheet-detail-model">{prompt.model}</span>
+          )}
         </div>
-
-        <div className="action-sheet-divider" />
-
-        {/* Actions */}
-        <div className="action-sheet-actions">
-          <button
-            className="action-sheet-btn"
-            onClick={() => { onReuse(prompt.promptText); onClose(); }}
-          >
-            <span className="action-sheet-btn-icon">↩</span>
-            <span className="action-sheet-btn-label">
-              <strong>Reuse in current chat</strong>
-              <span className="action-sheet-btn-hint">Paste into composer</span>
-            </span>
-          </button>
-          <button
-            className="action-sheet-btn"
-            onClick={() => { onNewChat(prompt.promptText); onClose(); }}
-          >
-            <span className="action-sheet-btn-icon">✦</span>
-            <span className="action-sheet-btn-label">
-              <strong>New chat with this</strong>
-              <span className="action-sheet-btn-hint">Start a fresh conversation</span>
-            </span>
-          </button>
-          <button
-            className="action-sheet-btn"
-            onClick={() => { onCopy(prompt.promptText); onClose(); }}
-          >
-            <span className="action-sheet-btn-icon">⎘</span>
-            <span className="action-sheet-btn-label">
-              <strong>Copy to clipboard</strong>
-              <span className="action-sheet-btn-hint">Copy full prompt text</span>
-            </span>
-          </button>
-          <button
-            className="action-sheet-btn"
-            onClick={() => { onOpenSession(prompt.sessionId); onClose(); }}
-          >
-            <span className="action-sheet-btn-icon">↗</span>
-            <span className="action-sheet-btn-label">
-              <strong>Open conversation</strong>
-              <span className="action-sheet-btn-hint">{prompt.sessionTitle}</span>
-            </span>
-          </button>
-        </div>
-
-        <button className="action-sheet-cancel" onClick={onClose}>Cancel</button>
+        <p className="action-sheet-detail-text">{prompt.promptText}</p>
       </div>
-    </div>,
-    document.body
+
+      <div className="action-sheet-divider" />
+
+      {/* Actions */}
+      <div className="action-sheet-actions">
+        <button
+          className="action-sheet-btn"
+          onClick={() => { onReuse(prompt.promptText); onClose(); }}
+        >
+          <span className="action-sheet-btn-icon">↩</span>
+          <span className="action-sheet-btn-label">
+            <strong>Reuse in current chat</strong>
+            <span className="action-sheet-btn-hint">Paste into composer</span>
+          </span>
+        </button>
+        <button
+          className="action-sheet-btn"
+          onClick={() => { onNewChat(prompt.promptText); onClose(); }}
+        >
+          <span className="action-sheet-btn-icon">✦</span>
+          <span className="action-sheet-btn-label">
+            <strong>New chat with this</strong>
+            <span className="action-sheet-btn-hint">Start a fresh conversation</span>
+          </span>
+        </button>
+        <button
+          className="action-sheet-btn"
+          onClick={() => { onCopy(prompt.promptText); onClose(); }}
+        >
+          <span className="action-sheet-btn-icon">⎘</span>
+          <span className="action-sheet-btn-label">
+            <strong>Copy to clipboard</strong>
+            <span className="action-sheet-btn-hint">Copy full prompt text</span>
+          </span>
+        </button>
+        <button
+          className="action-sheet-btn"
+          onClick={() => { onOpenSession(prompt.sessionId); onClose(); }}
+        >
+          <span className="action-sheet-btn-icon">↗</span>
+          <span className="action-sheet-btn-label">
+            <strong>Open conversation</strong>
+            <span className="action-sheet-btn-hint">{prompt.sessionTitle}</span>
+          </span>
+        </button>
+      </div>
+
+      <button className="action-sheet-cancel" onClick={onClose}>Cancel</button>
+    </ActionSheetBase>
   );
 }
