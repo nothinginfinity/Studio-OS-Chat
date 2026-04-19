@@ -49,12 +49,22 @@ export function IngestDropZone() {
     try {
       if (isPdf) {
         const result = await ingestPdfAsMarkdown(file, DEFAULT_ROOT);
+        if (!result) {
+          updateFile(file.name, { status: "error", message: "PDF extraction returned no content" });
+          return;
+        }
         updateFile(file.name, {
           status: "done",
-          message: `Indexed — ${result.pageCount} page${result.pageCount !== 1 ? "s" : ""} ✓`,
+          message: `Indexed — ${result.pageCount} page${
+            result.pageCount !== 1 ? "s" : ""
+          } ✓`,
         });
       } else {
         const result = await ingestImageAsMarkdown(file, DEFAULT_ROOT, mode);
+        if (!result) {
+          updateFile(file.name, { status: "error", message: "OCR returned no content" });
+          return;
+        }
         updateFile(file.name, {
           status: "done",
           message: `OCR done — ${result.wordCount} words ✓`,
@@ -111,7 +121,9 @@ export function IngestDropZone() {
         {OCR_MODES.map((m) => (
           <button
             key={m.value}
-            className={`ingest-mode-btn${mode === m.value ? " ingest-mode-btn--active" : ""}`}
+            className={`ingest-mode-btn${
+              mode === m.value ? " ingest-mode-btn--active" : ""
+            }`}
             onClick={() => setMode(m.value)}
           >
             {m.label}
@@ -121,7 +133,9 @@ export function IngestDropZone() {
 
       {/* Drop zone */}
       <div
-        className={`ingest-dropzone${dragging ? " ingest-dropzone--drag" : ""}`}
+        className={`ingest-dropzone${
+          dragging ? " ingest-dropzone--drag" : ""
+        }`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
