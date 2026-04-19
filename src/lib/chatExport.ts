@@ -1,18 +1,5 @@
 /**
  * chatExport.ts — v1
- *
- * Turns a ChatSession into a durable artifact bundle:
- *
- *   chat.md          — human-readable transcript
- *   context.json     — metadata: model, provider, tool calls, timestamps
- *   sources.json     — all file search results referenced in the session
- *   artifacts/       — any tool-produced content blocks (future)
- *
- * The bundle is stored as an ArtifactRecord in IndexedDB.
- * It can also be zipped for download or pushed to GitHub (see githubExport.ts).
- *
- * Design principle: conversations are ephemeral windows; repos are durable state.
- * This module is the bridge between the two.
  */
 
 import { uid } from "./utils";
@@ -24,13 +11,13 @@ import type {
   ChatSettings,
 } from "./types";
 
-// ── CDN dynamic import helper ────────────────────────────────────────────────────
+// ── CDN dynamic import helper ─────────────────────────────────────────────────
 // Uses Function constructor so TSC never sees the import() call and cannot
 // attempt to resolve the URL as a module specifier. Vite also ignores it.
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
 const cdnImport = new Function("url", "return import(url)") as (url: string) => Promise<Record<string, unknown>>;
 
-// ── Markdown transcript ────────────────────────────────────────────────────────────────────
+// ── Markdown transcript ───────────────────────────────────────────────────────
 
 function roleLabel(role: ChatMessage["role"]): string {
   switch (role) {
@@ -89,7 +76,7 @@ export function sessionToMarkdown(session: ChatSession): string {
   return header + body;
 }
 
-// ── Context JSON ──────────────────────────────────────────────────────────────────────
+// ── Context JSON ──────────────────────────────────────────────────────────────
 
 export interface ExportContext {
   sessionId: string;
@@ -126,7 +113,7 @@ function buildContext(
   };
 }
 
-// ── Sources JSON ───────────────────────────────────────────────────────────────────────
+// ── Sources JSON ──────────────────────────────────────────────────────────────
 
 function extractSources(session: ChatSession): unknown[] {
   const sources: unknown[] = [];
@@ -138,7 +125,7 @@ function extractSources(session: ChatSession): unknown[] {
   return sources;
 }
 
-// ── Slug generator ────────────────────────────────────────────────────────────────────
+// ── Slug generator ────────────────────────────────────────────────────────────
 
 function toSlug(title: string, date: Date): string {
   const dateStr = date.toISOString().slice(0, 10);
@@ -150,7 +137,7 @@ function toSlug(title: string, date: Date): string {
   return `${dateStr}-${titleSlug}`;
 }
 
-// ── Bundle type ──────────────────────────────────────────────────────────────────────
+// ── Bundle type ───────────────────────────────────────────────────────────────
 
 export interface ChatExportBundle {
   slug: string;
@@ -158,7 +145,7 @@ export interface ChatExportBundle {
   artifact: ArtifactRecord;
 }
 
-// ── ArtifactRecord persistence ────────────────────────────────────────────────────────
+// ── ArtifactRecord persistence ────────────────────────────────────────────────
 
 const ARTIFACTS_KEY = "__artifacts__";
 
@@ -188,7 +175,7 @@ export async function updateArtifactRepoUrl(
   await putSetting(ARTIFACTS_KEY, updated);
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export async function exportChat(
   session: ChatSession,
@@ -243,7 +230,7 @@ export async function exportChat(
   return { slug, files, artifact };
 }
 
-// ── Download helper (ZIP via browser) ──────────────────────────────────────────
+// ── Download helper (ZIP via browser) ─────────────────────────────────────────
 
 /**
  * Triggers a browser download of the export bundle as a .zip file.
@@ -251,6 +238,10 @@ export async function exportChat(
  *
  * cdnImport() uses the Function constructor so TypeScript never sees the
  * import() call and cannot attempt to resolve the URL as a module specifier.
+ *
+ * The zipped Uint8Array is copied into a plain ArrayBuffer before passing
+ * to Blob — required because TS strict DOM lib types BlobPart as
+ * Uint8Array<ArrayBuffer>, not Uint8Array<ArrayBufferLike>.
  */
 export async function downloadExportAsZip(bundle: ChatExportBundle): Promise<void> {
   const { zipSync, strToU8 } = await cdnImport("https://esm.sh/fflate@0.8");
@@ -264,7 +255,16 @@ export async function downloadExportAsZip(bundle: ChatExportBundle): Promise<voi
   }
 
   const zipped = zipFn(zipEntries);
-  const blob = new Blob([zipped], { type: "application/zip" });
+
+  // Copy into a plain ArrayBuffer so Blob constructor is satisfied under
+  // strict TS DOM types (BlobPart requires Uint8Array<ArrayBuffer> not
+  // Uint8Array<ArrayBufferLike>).
+  const buf = zipped.buffer.slice(
+    zipped.byteOffset,
+    zipped.byteOffset + zipped.byteLength
+  ) as ArrayBuffer;
+
+  const blob = new Blob([buf], { type: "application/zip" });
   const blobUrl = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
