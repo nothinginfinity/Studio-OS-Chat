@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { useChat } from "./hooks/useChat";
@@ -9,6 +9,7 @@ export default function App() {
     activeSession,
     activeSessionId,
     createSession,
+    createSessionWithDraft,
     setActiveSession,
     renameSession,
     markSessionExported,
@@ -19,18 +20,15 @@ export default function App() {
     clearChat,
     isLoading,
     error,
-    dbReady
+    dbReady,
+    draftText,
+    setDraftText,
+    reusePromptText,
   } = useChat();
 
-  // Composer insert-prompt bridge: ChatWindow exposes a setter so panels
-  // can inject text into the textarea without prop-drilling through Sidebar.
-  const [pendingInsert, setPendingInsert] = useState<string | null>(null);
   const handleInsertPrompt = useCallback((content: string) => {
-    setPendingInsert(content);
-  }, []);
-  const handleInsertConsumed = useCallback(() => {
-    setPendingInsert(null);
-  }, []);
+    reusePromptText(content);
+  }, [reusePromptText]);
 
   if (!dbReady) {
     return (
@@ -53,6 +51,8 @@ export default function App() {
         onRenameSession={renameSession}
         onSessionExported={markSessionExported}
         onInsertPrompt={handleInsertPrompt}
+        onReusePrompt={reusePromptText}
+        onCreateSessionWithDraft={createSessionWithDraft}
       />
       <ChatWindow
         messages={messages}
@@ -60,8 +60,8 @@ export default function App() {
         isLoading={isLoading}
         error={error}
         sessionId={activeSession?.id}
-        pendingInsert={pendingInsert}
-        onInsertConsumed={handleInsertConsumed}
+        draftText={draftText}
+        onDraftChange={setDraftText}
       />
     </div>
   );

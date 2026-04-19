@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import type { ChatMessage } from "../lib/types";
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "./MessageComposer";
@@ -9,10 +9,8 @@ interface Props {
   isLoading: boolean;
   error: string;
   sessionId?: string;
-  /** Text to inject into the composer from an external panel (e.g. PromptLibrary) */
-  pendingInsert?: string | null;
-  /** Called once the pending insert has been consumed so App can clear it */
-  onInsertConsumed?: () => void;
+  draftText: string;
+  onDraftChange: (text: string) => void;
 }
 
 export function ChatWindow({
@@ -21,19 +19,9 @@ export function ChatWindow({
   isLoading,
   error,
   sessionId,
-  pendingInsert,
-  onInsertConsumed,
+  draftText,
+  onDraftChange,
 }: Props) {
-  const [composerText, setComposerText] = useState("");
-
-  // Consume pendingInsert whenever App sets one
-  useEffect(() => {
-    if (pendingInsert) {
-      setComposerText(pendingInsert);
-      onInsertConsumed?.();
-    }
-  }, [pendingInsert, onInsertConsumed]);
-
   return (
     <section className="chat-window">
       <MessageList messages={messages} />
@@ -42,9 +30,9 @@ export function ChatWindow({
       <MessageComposer
         onSend={onSend}
         disabled={isLoading}
+        value={draftText}
+        onChange={onDraftChange}
         sessionId={sessionId}
-        externalText={composerText}
-        onExternalTextConsumed={() => setComposerText("")}
       />
     </section>
   );

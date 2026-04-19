@@ -51,19 +51,10 @@ function sessionToRecord(s: ChatSession, messageCount: number): SessionRecord {
   };
 }
 
-/**
- * Derives a slug string from an export path like
- * "exports/chats/2026-04-19-my-chat_abc12345.osmd"
- * → "2026-04-19-my-chat_abc12345"
- */
 function deriveSlugFromExportPath(path: string): string {
   return path.split("/").pop()?.replace(/\.osmd$/, "") ?? path;
 }
 
-/**
- * Builds the file-index appendix that gets appended to the system prompt.
- * Returns an empty string when no files are indexed.
- */
 function buildFileIndexAppendix(filePaths: string[]): string {
   if (!filePaths.length) return "";
   const list = filePaths.map((p) => `  • ${p}`).join("\n");
@@ -88,14 +79,14 @@ export function useChat() {
   const [error, setError] = useState<string>("");
   const [dbReady, setDbReady] = useState(false);
   const [indexedFilePaths, setIndexedFilePaths] = useState<string[]>([]);
+  const [draftText, setDraftText] = useState("");
 
-  // ── Load indexed file list ────────────────────────────────────────────────
   const refreshFileIndex = useCallback(async () => {
     try {
       const files = await listAllFiles();
       setIndexedFilePaths(files.map((f) => f.path));
     } catch {
-      // Non-fatal — model just won't have the file list appendix
+      // Non-fatal
     }
   }, []);
 
@@ -112,7 +103,6 @@ export function useChat() {
             createdAt: rec.createdAt,
             updatedAt: rec.updatedAt,
             messages: msgs as ChatMessage[],
-            // Hydrate exportRef from persisted SessionRecord fields
             exportRef:
               rec.exportArtifactId && rec.exportPath && rec.exportedAt
                 ? {
@@ -133,7 +123,6 @@ export function useChat() {
     loadFromDb();
   }, []);
 
-  // Refresh the file index once the DB is ready, and keep it current.
   useEffect(() => {
     if (dbReady) refreshFileIndex();
   }, [dbReady, refreshFileIndex]);
@@ -189,6 +178,24 @@ export function useChat() {
     return session;
   }
 
+  const reusePromptText = useCallback((text: string) => {
+    setDraftText(text);
+  }, []);
+
+  const appendPromptText = useCallback((text: string) => {
+    setDraftText((prev) => {
+      if (!prev.trim()) return text;
+      return `${prev}\n\n${text}`;
+    });
+  }, []);
+
+  async function createSessionWithDraft(text: string) {
+    const session = await createSession(text);
+    setActiveSessionIdState(session.id);
+    setDraftText(text);
+    return session;
+  }
+
   function setActiveSession(id: string) {
     setActiveSessionIdState(id);
     setError("");
@@ -203,12 +210,6 @@ export function useChat() {
     );
   }
 
-  /**
-   * Updates React state immediately after exportChat() completes so the
-   * sidebar export badge appears without requiring a reload.
-   * Export orchestration stays in ExportChatButton — this is just the
-   * in-memory state updater.
-   */
   const markSessionExported = useCallback(
     (sessionId: string, exportRef: ChatExportRef) => {
       setSessions((prev) =>
@@ -218,7 +219,6 @@ export function useChat() {
     []
   );
 
-  // ── System prompt with file-index appendix ────────────────────────────────
   const effectiveSystemPrompt = useMemo(() => {
     return settings.systemPrompt + buildFileIndexAppendix(indexedFilePaths);
   }, [settings.systemPrompt, indexedFilePaths]);
@@ -286,7 +286,6 @@ export function useChat() {
         { role: "user", content: trimmed }
       ];
 
-      // ── OpenAI-compatible path (Groq, OpenAI, Gemini, xAI, etc.) ─────────
       if (!isOllama) {
         const provider = getProvider(settings.provider);
         if (!provider) throw new Error(`Unknown provider: ${settings.provider}`);
@@ -340,7 +339,6 @@ export function useChat() {
           )
         );
 
-        // Auto-title refinement
         setSessions((prev) =>
           prev.map((s) => {
             if (s.id !== session.id || s.titleSource !== "auto") return s;
@@ -353,7 +351,6 @@ export function useChat() {
           })
         );
 
-        // Tool execution
         if (streamedToolCalls.length > 0) {
           let toolMessages: ChatMessage[] = [];
           for (const call of streamedToolCalls) {
@@ -520,6 +517,7 @@ export function useChat() {
     activeSession,
     activeSessionId,
     createSession,
+    createSessionWithDraft,
     setActiveSession,
     renameSession,
     markSessionExported,
@@ -530,6 +528,10 @@ export function useChat() {
     clearChat,
     isLoading,
     error,
-    dbReady
+    dbReady,
+    draftText,
+    setDraftText,
+    reusePromptText,
+    appendPromptText,
   };
 }

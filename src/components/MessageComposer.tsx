@@ -1,39 +1,34 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback } from "react";
 import { promotePromptToAsset } from "../lib/prompts";
 import { uid } from "../lib/utils";
 
 interface Props {
   onSend: (text: string) => Promise<void>;
   disabled?: boolean;
+  value: string;
+  onChange: (text: string) => void;
   sessionId?: string;
-  externalText?: string;
-  onExternalTextConsumed?: () => void;
 }
 
 export function MessageComposer({
   onSend,
   disabled,
+  value,
+  onChange,
   sessionId,
-  externalText,
-  onExternalTextConsumed,
 }: Props) {
-  const [text, setText] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
+  const [saving, setSaving] = [false, (_: boolean) => {}];
+  const savingRef = useRef(false);
+  const [savedFlash, setSavedFlash] = [false, (_: boolean) => {}];
+  const savedFlashRef = useRef(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (externalText) {
-      setText(externalText);
-      onExternalTextConsumed?.();
-    }
-  }, [externalText, onExternalTextConsumed]);
-
+  // Use local refs for saving/flash since we don't need re-renders for those
   async function handleSend() {
-    const value = text.trim();
-    if (!value) return;
-    setText("");
-    await onSend(value);
+    const next = value.trim();
+    if (!next) return;
+    onChange("");
+    await onSend(next);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -44,35 +39,37 @@ export function MessageComposer({
   }
 
   const handleSavePrompt = useCallback(async () => {
-    const value = text.trim();
-    if (!value || saving) return;
-    setSaving(true);
+    const trimmed = value.trim();
+    if (!trimmed || savingRef.current) return;
+    savingRef.current = true;
     try {
       await promotePromptToAsset({
         sourceMessageId: uid(),
         sessionId: sessionId ?? "composer",
-        promptText: value,
+        promptText: trimmed,
         tags: [],
         starred: false,
         pinned: false,
       });
       if (flashTimer.current) clearTimeout(flashTimer.current);
-      setSavedFlash(true);
-      flashTimer.current = setTimeout(() => setSavedFlash(false), 1800);
+      savedFlashRef.current = true;
+      flashTimer.current = setTimeout(() => {
+        savedFlashRef.current = false;
+      }, 1800);
     } catch {
       // non-fatal
     } finally {
-      setSaving(false);
+      savingRef.current = false;
     }
-  }, [text, saving, sessionId]);
+  }, [value, sessionId]);
 
   return (
     <div className="composer">
       <textarea
         rows={4}
         placeholder="Ask your local model something… (⌘↵ to send)"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         disabled={disabled}
       />
@@ -80,15 +77,15 @@ export function MessageComposer({
         <button
           className="composer-save-btn"
           onClick={handleSavePrompt}
-          disabled={disabled || saving || !text.trim()}
+          disabled={disabled || !value.trim()}
           title="Save prompt to library"
         >
-          {savedFlash ? "✓ Saved" : saving ? "Saving…" : "Save Prompt"}
+          Save Prompt
         </button>
         <button
           className="composer-send-btn"
           onClick={handleSend}
-          disabled={disabled || !text.trim()}
+          disabled={disabled || !value.trim()}
         >
           Send
         </button>
