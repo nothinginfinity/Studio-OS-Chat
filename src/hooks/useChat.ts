@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   putSession,
   listSessions,
   putMessages,
   listMessages,
-  renameSession as dbRenameSession
+  renameSession as dbRenameSession,
+  listAllFiles
 } from "../lib/db";
 import {
   loadSettings,
@@ -45,6 +46,23 @@ function sessionToRecord(s: ChatSession, messageCount: number): SessionRecord {
   };
 }
 
+/**
+ * Builds the file-index appendix that gets appended to the system prompt.
+ * Returns an empty string when no files are indexed.
+ */
+function buildFileIndexAppendix(filePaths: string[]): string {
+  if (!filePaths.length) return "";
+  const list = filePaths.map((p) => `  • ${p}`).join("\n");
+  return (
+    `\n\n--- Indexed files (${filePaths.length}) ---\n` +
+    list +
+    `\n---\n` +
+    `When the user asks about any of these files or their content, ` +
+    `call the file_search tool FIRST before answering. ` +
+    `Never say no files are available when this list is non-empty.`
+  );
+}
+
 export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
@@ -55,6 +73,18 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [dbReady, setDbReady] = useState(false);
+  // Holds the display names of all currently indexed files.
+  const [indexedFilePaths, setIndexedFilePaths] = useState<string[]>([]);
+
+  // ── Load indexed file list ────────────────────────────────────────────────
+  const refreshFileIndex = useCallback(async () => {
+    try {
+      const files = await listAllFiles();
+      setIndexedFilePaths(files.map((f) => f.path));
+    } catch {
+      // Non-fatal — model just won't have the file list appendix
+    }
+  }, []);
 
   useEffect(() => {
     async function loadFromDb() {
@@ -78,6 +108,11 @@ export function useChat() {
     }
     loadFromDb();
   }, []);
+
+  // Refresh the file index once the DB is ready, and keep it current.
+  useEffect(() => {
+    if (dbReady) refreshFileIndex();
+  }, [dbReady, refreshFileIndex]);
 
   async function persistSessionMeta(session: ChatSession, msgCount: number) {
     await putSession(sessionToRecord(session, msgCount));
@@ -144,9 +179,14 @@ export function useChat() {
     );
   }
 
+  // ── System prompt with file-index appendix ────────────────────────────────
+  const effectiveSystemPrompt = useMemo(() => {
+    return settings.systemPrompt + buildFileIndexAppendix(indexedFilePaths);
+  }, [settings.systemPrompt, indexedFilePaths]);
+
   const ollamaMessages = useMemo<OllamaMessage[]>(() => {
     const base: OllamaMessage[] = [
-      { role: "system", content: settings.systemPrompt }
+      { role: "system", content: effectiveSystemPrompt }
     ];
     for (const msg of messages) {
       if (msg.role === "user" || msg.role === "assistant" || msg.role === "tool") {
@@ -160,7 +200,7 @@ export function useChat() {
       }
     }
     return base;
-  }, [messages, settings.systemPrompt]);
+  }, [messages, effectiveSystemPrompt]);
 
   const isOllama = settings.provider === "ollama" || !settings.provider;
 
@@ -315,10 +355,12 @@ export function useChat() {
           );
         }
 
+        // Refresh file index so next turn reflects any files ingested this turn
+        await refreshFileIndex();
         return;
       }
 
-      // ── Ollama path (unchanged) ───────────────────────────────────────────
+      // ── Ollama path ───────────────────────────────────────────────────────
       const firstResponse = await chatWithOllamaStream(
         {
           baseUrl: settings.ollamaBaseUrl,
@@ -420,6 +462,9 @@ export function useChat() {
           )
         );
       }
+
+      // Refresh file index so next turn reflects any files ingested this turn
+      await refreshFileIndex();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
