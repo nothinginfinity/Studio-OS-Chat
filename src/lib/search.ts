@@ -1,17 +1,18 @@
 /**
- * search.ts — v3
+ * search.ts — v4
  * BM25-lite lexical retrieval over the IndexedDB term/chunk index.
+ * Fixed: file path cache now built upfront via listAllFiles()
+ * instead of the broken listFilesByRoot("") call.
  */
 
-import { searchChunksByTerms, listFilesByRoot } from "./db";
+import { searchChunksByTerms, listAllFiles } from "./db";
 import { tokenize } from "./fileIndex";
-import type { SearchResult } from "./types";
+import type { SearchResult, FileRecord } from "./types";
 
 const SNIPPET_LENGTH = 300;
 
 function extractSnippet(text: string, queryTerms: string[]): string {
   const lower = text.toLowerCase();
-  // Find the first occurrence of any query term and center the snippet around it
   let bestPos = -1;
   for (const term of queryTerms) {
     const idx = lower.indexOf(term);
@@ -46,26 +47,25 @@ export async function searchLocalIndex(
   const raw = await searchChunksByTerms(queryTerms, limit * 4);
   if (!raw.length) return [];
 
-  // Build a file-path lookup — load roots/files lazily here
+  // Build path cache ONCE upfront — fixes the listFilesByRoot("") bug
+  const allFiles = await listAllFiles();
   const filePathCache = new Map<string, string>();
+  const fileRootCache = new Map<string, string>();
+  for (const f of allFiles) {
+    filePathCache.set(f.id, f.path);
+    fileRootCache.set(f.id, f.rootId);
+  }
 
   const scored: SearchResult[] = [];
 
   for (const { chunk, score } of raw) {
-    if (!filePathCache.has(chunk.fileId)) {
-      // Look up from the files store via a quick single-item fetch
-      const files = await listFilesByRoot(""); // will filter below
-      // Populate cache from whatever we got
-      for (const f of files) filePathCache.set(f.id, f.path);
+    // Apply rootId filter properly now that we have real file records
+    if (options?.rootId) {
+      const fileRootId = fileRootCache.get(chunk.fileId);
+      if (fileRootId !== options.rootId) continue;
     }
 
     const filePath = filePathCache.get(chunk.fileId) ?? chunk.fileId;
-
-    if (options?.rootId) {
-      // rootId filter: skip if this file isn't in the requested root
-      // (filePath cache may not have enough info, so we accept a miss here)
-    }
-
     const finalScore =
       score +
       pathBoost(filePath, queryTerms) +
