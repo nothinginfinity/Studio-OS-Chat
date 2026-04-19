@@ -1,8 +1,10 @@
 import { usePromptHistory, type SortOrder } from "../hooks/usePromptHistory";
+import type { PromptAssetRecord } from "../lib/prompts";
 
 interface Props {
   active: boolean;
   onOpenSession: (sessionId: string) => void;
+  onInsertPrompt?: (content: string) => void;
 }
 
 function relativeTime(ts: number): string {
@@ -17,9 +19,20 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function PromptHistory({ active, onOpenSession }: Props) {
-  const { prompts, loading, query, setQuery, sortOrder, setSortOrder, refresh } =
+export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) {
+  const { prompts, loading, query, setQuery, sortOrder, setSortOrder, refresh, promote } =
     usePromptHistory(active);
+
+  async function handlePromote(content: string, sessionId: string) {
+    await promote({
+      content,
+      title: content.slice(0, 72),
+      sessionId,
+      tags: [],
+      starred: false,
+      pinned: false,
+    });
+  }
 
   return (
     <div className="prompt-history">
@@ -79,19 +92,39 @@ export function PromptHistory({ active, onOpenSession }: Props) {
           </div>
         )}
         {prompts.map((p) => (
-          <button
-            key={p.messageId}
-            className="prompt-card"
-            onClick={() => onOpenSession(p.sessionId)}
-            role="listitem"
-            aria-label={`Open conversation: ${p.sessionTitle}`}
-          >
+          <div key={p.messageId} className="prompt-card" role="listitem">
             <div className="prompt-card-content">{p.content}</div>
             <div className="prompt-card-meta">
               <span className="prompt-card-session">{p.sessionTitle}</span>
               <span className="prompt-card-time">{relativeTime(p.createdAt)}</span>
             </div>
-          </button>
+            <div className="prompt-card-actions">
+              <button
+                className="prompt-card-btn"
+                onClick={() => onOpenSession(p.sessionId)}
+                aria-label={`Open conversation: ${p.sessionTitle}`}
+              >
+                Open
+              </button>
+              {onInsertPrompt && (
+                <button
+                  className="prompt-card-btn"
+                  onClick={() => onInsertPrompt(p.content)}
+                  aria-label="Insert prompt into composer"
+                >
+                  Insert
+                </button>
+              )}
+              <button
+                className="prompt-card-btn prompt-card-btn--save"
+                onClick={() => handlePromote(p.content, p.sessionId)}
+                aria-label="Save to prompt library"
+                title="Save to library"
+              >
+                ★ Save
+              </button>
+            </div>
+          </div>
         ))}
       </div>
     </div>
