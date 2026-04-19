@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import type { PromptHistoryItem } from "../lib/types";
 
 function relativeTime(ts: number): string {
@@ -35,7 +36,7 @@ export function PromptActionSheet({
     if (e.target === e.currentTarget) onClose();
   }
 
-  return (
+  return createPortal(
     <div
       className="action-sheet-backdrop"
       onClick={handleBackdrop}
@@ -106,6 +107,7 @@ export function PromptActionSheet({
 
         <button className="action-sheet-cancel" onClick={onClose}>Cancel</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

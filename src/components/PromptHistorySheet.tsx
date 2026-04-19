@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { usePromptHistory } from "../hooks/usePromptHistory";
 import { PromptSearchBar } from "./PromptSearchBar";
 import { PromptRow } from "./PromptRow";
@@ -23,8 +24,6 @@ export function PromptHistorySheet({
   const { prompts, loading, query, setQuery, refresh } = usePromptHistory(open);
   const [activePrompt, setActivePrompt] = useState<PromptHistoryItem | null>(null);
 
-  if (!open) return null;
-
   function handleBackdrop(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
   }
@@ -43,7 +42,9 @@ export function PromptHistorySheet({
     onClose();
   }
 
-  return (
+  if (!open) return null;
+
+  return createPortal(
     <div
       className="sheet-backdrop"
       onClick={handleBackdrop}
@@ -93,6 +94,7 @@ export function PromptHistorySheet({
         onCopy={handleCopy}
         onOpenSession={handleOpenSession}
       />
-    </div>
+    </div>,
+    document.body
   );
 }
