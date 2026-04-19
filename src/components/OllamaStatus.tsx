@@ -6,8 +6,13 @@ interface Props {
 }
 
 export function OllamaStatus({ settings }: Props) {
+  const isOllama = !settings.provider || settings.provider === "ollama";
+
   const { state, models, errorMessage, lastChecked, recheck } =
-    useOllamaStatus(settings.ollamaBaseUrl);
+    useOllamaStatus(isOllama ? settings.ollamaBaseUrl : null);
+
+  // Don't render anything when a cloud provider is active
+  if (!isOllama) return null;
 
   const dot =
     state === "connected" ? "🟢" : state === "error" ? "🔴" : "🟡";
