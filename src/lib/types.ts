@@ -4,6 +4,16 @@ export type MessageStatus = "complete" | "streaming" | "error";
 export type SourceType = "file" | "ocr" | "pdf" | "paste" | "chat-export";
 export type OCRMode = "screenshot" | "document" | "code" | "receipt";
 
+export type PromptScore = 1 | 2 | 3 | 4 | 5;
+export type UsageSource = "provider" | "estimated" | "unknown";
+
+export type PromptRelationType =
+  | "previous"
+  | "next"
+  | "revision"
+  | "variant"
+  | "derived_from";
+
 export interface ToolCall {
   id?: string;
   function: {
@@ -24,6 +34,16 @@ export interface ChatMessage {
   toolData?: unknown;
   toolCallId?: string;
   toolCalls?: ToolCall[];
+  // prompt asset metadata (additive, backward-compatible)
+  provider?: string;
+  model?: string;
+  inputTokenCount?: number;
+  inputTokenEstimate?: number;
+  outputTokenCount?: number;
+  outputTokenEstimate?: number;
+  usageSource?: UsageSource;
+  latencyMs?: number;
+  promptAssetId?: string;
 }
 
 export interface ChatSession {
@@ -40,9 +60,7 @@ export interface ChatSettings {
   ollamaBaseUrl: string;
   model: string;
   systemPrompt: string;
-  /** Active provider id — e.g. "groq", "openai", "ollama" */
   provider: string;
-  /** API key for the active provider (not used for Ollama) */
   apiKey: string;
 }
 
@@ -72,6 +90,94 @@ export interface MessageRecord {
   toolData?: unknown;
   toolCallId?: string;
   toolCalls?: ToolCall[];
+  // prompt asset metadata (additive, backward-compatible)
+  provider?: string;
+  model?: string;
+  inputTokenCount?: number;
+  inputTokenEstimate?: number;
+  outputTokenCount?: number;
+  outputTokenEstimate?: number;
+  usageSource?: UsageSource;
+  latencyMs?: number;
+  promptAssetId?: string;
+}
+
+// ── Prompt asset types ────────────────────────────────────────────────────────
+
+export interface PromptAssetRecord {
+  id: string;
+  sourceMessageId: string;
+  sessionId: string;
+  responseMessageId?: string;
+  promptText: string;
+  createdAt: number;
+  updatedAt: number;
+  promotedAt: number;
+  starred: boolean;
+  pinned: boolean;
+  archived: boolean;
+  rating?: PromptScore;
+  tags: string[];
+  notes?: string;
+  provider?: string;
+  model?: string;
+  inputTokenCount?: number;
+  inputTokenEstimate?: number;
+  outputTokenCount?: number;
+  outputTokenEstimate?: number;
+  usageSource: UsageSource;
+  latencyMs?: number;
+  outcomeLabel?: "useful" | "funny" | "failed" | "draft" | "reference";
+}
+
+export interface PromptRelationRecord {
+  id: string;
+  fromPromptAssetId: string;
+  toPromptAssetId: string;
+  type: PromptRelationType;
+  createdAt: number;
+}
+
+export interface PromptHistoryItem {
+  messageId: string;
+  sessionId: string;
+  promptText: string;
+  createdAt: number;
+  sessionTitle: string;
+  provider?: string;
+  model?: string;
+  assetId?: string;
+  starred?: boolean;
+  pinned?: boolean;
+  rating?: PromptScore;
+}
+
+export interface PromptLibraryFilters {
+  query: string;
+  tags: string[];
+  starredOnly: boolean;
+  pinnedOnly: boolean;
+  sortBy: "recent" | "oldest" | "rating";
+}
+
+export interface PromotePromptInput {
+  sourceMessageId: string;
+  sessionId: string;
+  promptText: string;
+  responseMessageId?: string;
+  provider?: string;
+  model?: string;
+  inputTokenEstimate?: number;
+  outputTokenEstimate?: number;
+  inputTokenCount?: number;
+  outputTokenCount?: number;
+  usageSource?: UsageSource;
+  latencyMs?: number;
+  starred?: boolean;
+  pinned?: boolean;
+  rating?: PromptScore;
+  tags?: string[];
+  notes?: string;
 }
 
 export interface FileRootRecord {
@@ -92,13 +198,9 @@ export interface FileRecord {
   modifiedAt: number;
   contentHash: string;
   indexedAt: number;
-  /** How this file entered the system */
   sourceType: SourceType;
-  /** Set only when sourceType === "ocr" */
   ocrMode?: OCRMode;
-  /** Unix ms when ingestion pipeline completed (may differ from indexedAt for async OCR) */
   ingestedAt: number;
-  /** For OCR/PDF: id of the original binary FileRecord this was derived from */
   sourceFileId?: string;
 }
 
@@ -131,18 +233,12 @@ export interface SearchResult {
 export interface ArtifactRecord {
   id: string;
   sessionId: string;
-  /** "chat-export" | future types */
   kind: string;
-  /** ISO filename-safe slug, e.g. "2026-04-19-my-chat" */
   slug: string;
   createdAt: number;
-  /** Serialised JSON blob of the export manifest */
   manifest: string;
-  /** Optional GitHub repo URL if pushed */
   repoUrl?: string;
-  /** Canonical export format */
   format?: "osmd@1";
-  /** Main artifact path for quick lookup */
   primaryPath?: string;
 }
 
@@ -151,19 +247,19 @@ export interface ArtifactRecord {
 export interface ChatExportRef {
   artifactId: string;
   slug: string;
-  exportPath: string;          // exports/chats/<filename>.osmd
-  exportedAt: number;          // unix ms
+  exportPath: string;
+  exportedAt: number;
   format: "osmd@1";
 }
 
 export interface OSMDMeta {
-  id: string;                  // artifact/session export id
+  id: string;
   sessionId: string;
   title: string;
-  sessionDate: string;         // ISO
-  createdAt: string;           // ISO
-  updatedAt: string;           // ISO
-  exportedAt: string;          // ISO
+  sessionDate: string;
+  createdAt: string;
+  updatedAt: string;
+  exportedAt: string;
   provider?: string;
   model?: string;
   messageCount: number;
@@ -178,7 +274,7 @@ export interface OSMDIndexEntry {
   id: string;
   sessionId: string;
   title: string;
-  date: string;                // YYYY-MM-DD
+  date: string;
   path: string;
   summary: string | null;
   tags: string[];
@@ -201,7 +297,6 @@ export interface SpaceRecord {
   id: string;
   name: string;
   spaceUrl: string;
-  /** Markdown dropped into the Space as context */
   contextMarkdown: string;
   promptTemplates: string[];
   inboundMailboxPath: string;

@@ -1,57 +1,56 @@
 /**
- * prompts.ts — Prompt history helpers
- *
- * Reads user-role MessageRecords directly from the existing messages
- * object store in db.ts. No schema changes required.
+ * prompts.ts — Thin wrappers + transforms for the prompt asset layer.
+ * All heavy lifting lives in db.ts; this module is the public API surface.
  */
 
-import type { MessageRecord } from "./types";
-import { listMessages, listSessions } from "./db";
+import type { PromptAssetRecord, PromptHistoryItem } from "./types";
+import {
+  listAllUserPrompts,
+  searchUserPrompts,
+  promotePromptToAsset,
+  listPromptAssets,
+  listStarredPromptAssets,
+  listPinnedPromptAssets,
+  updatePromptAsset,
+  putPromptRelation,
+  listPromptRelationsForAsset,
+} from "./db";
 
-export interface PromptEntry {
-  messageId: string;
-  sessionId: string;
-  sessionTitle: string;
-  content: string;
-  createdAt: number;
+export {
+  listAllUserPrompts,
+  searchUserPrompts,
+  promotePromptToAsset,
+  listPromptAssets,
+  listStarredPromptAssets,
+  listPinnedPromptAssets,
+  updatePromptAsset,
+  putPromptRelation,
+  listPromptRelationsForAsset,
+};
+
+/** Truncates prompt text to `max` chars with a trailing ellipsis. */
+export function truncatePrompt(text: string, max = 180): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}\u2026`;
 }
 
 /**
- * Returns every user-role message across all sessions,
- * sorted newest-first, enriched with session title.
+ * Derives a short human-readable title from raw prompt text.
+ * Takes the first sentence up to 72 chars.
  */
-export async function listAllUserPrompts(): Promise<PromptEntry[]> {
-  const sessions = await listSessions();
-  const sessionMap = new Map<string, string>(
-    sessions.map((s) => [s.id, s.title])
-  );
-
-  const allMessages: MessageRecord[] = [];
-  for (const session of sessions) {
-    const msgs = await listMessages(session.id);
-    allMessages.push(...msgs.filter((m) => m.role === "user"));
-  }
-
-  return allMessages
-    .map((m) => ({
-      messageId: m.id,
-      sessionId: m.sessionId,
-      sessionTitle: sessionMap.get(m.sessionId) ?? "Untitled",
-      content: m.content,
-      createdAt: m.createdAt,
-    }))
-    .sort((a, b) => b.createdAt - a.createdAt);
+export function derivePromptTitle(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Untitled prompt";
+  const sentence = normalized.split(/[.!?\n]/)[0]?.trim() ?? normalized;
+  return truncatePrompt(sentence, 72);
 }
 
-/**
- * Keyword search across prompt content (case-insensitive).
- * Splits query into tokens and requires ALL tokens to match.
- */
-export async function searchUserPrompts(query: string): Promise<PromptEntry[]> {
-  const all = await listAllUserPrompts();
-  if (!query.trim()) return all;
-  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return all.filter((p) =>
-    tokens.every((tok) => p.content.toLowerCase().includes(tok))
-  );
+/** Returns a card-length snippet from a PromptHistoryItem or PromptAssetRecord. */
+export function toPromptCardSnippet(
+  item: PromptHistoryItem | PromptAssetRecord,
+  max = 180
+): string {
+  const text = "promptText" in item ? item.promptText : "";
+  return truncatePrompt(text, max);
 }
