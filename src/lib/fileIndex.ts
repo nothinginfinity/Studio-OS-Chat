@@ -124,7 +124,9 @@ export async function indexFile(
     size: file.size,
     modifiedAt: file.lastModified || now,
     contentHash: hash,
-    indexedAt: now
+    indexedAt: now,
+    ingestedAt: now,
+    sourceType: "file",
   };
 
   await putFile(fileRecord);
