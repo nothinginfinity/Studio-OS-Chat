@@ -9,6 +9,7 @@ import { IngestDropZone } from "./IngestDropZone";
 import { ExportChatButton } from "./ExportChatButton";
 import { GitHubSettings } from "./GitHubSettings";
 import { SpacesPanel } from "./SpacesPanel";
+import { PromptHistory } from "./PromptHistory";
 
 interface SidebarProps {
   settings: ChatSettings;
@@ -22,7 +23,7 @@ interface SidebarProps {
   onSessionExported: (sessionId: string, exportRef: ChatExportRef) => void;
 }
 
-type Tab = "chats" | "files" | "spaces" | "settings";
+type Tab = "chats" | "prompts" | "files" | "spaces" | "settings";
 
 export function Sidebar({
   settings,
@@ -44,6 +45,11 @@ export function Sidebar({
     setSettings(next);
   }
 
+  function handleOpenSessionFromHistory(sessionId: string) {
+    onSelectSession(sessionId);
+    setTab("chats");
+  }
+
   return (
     <aside className="sidebar">
       <h1>Studio OS Chat</h1>
@@ -57,6 +63,13 @@ export function Sidebar({
           onClick={() => setTab("chats")}
         >
           Chats
+        </button>
+        <button
+          className={tab === "prompts" ? "tab active" : "tab"}
+          onClick={() => setTab("prompts")}
+          aria-label="Prompt history"
+        >
+          Prompts
         </button>
         <button
           className={tab === "files" ? "tab active" : "tab"}
@@ -155,6 +168,14 @@ export function Sidebar({
             ) : null}
           </div>
         </>
+      )}
+
+      {/* Prompts tab */}
+      {tab === "prompts" && (
+        <PromptHistory
+          active={tab === "prompts"}
+          onOpenSession={handleOpenSessionFromHistory}
+        />
       )}
 
       {/* Files tab */}
