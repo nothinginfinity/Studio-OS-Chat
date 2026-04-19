@@ -21,6 +21,7 @@ import type {
   ChatMessage,
   ChatSession,
   ChatSettings,
+  MessageRecord,
   OllamaMessage,
   SessionRecord,
   ToolCall
@@ -79,9 +80,19 @@ export function useChat() {
   }
 
   async function persistSessionMessages(sessionId: string, messages: ChatMessage[]) {
-    await putMessages(
-      messages.map((m) => ({ ...m, sessionId }))
-    );
+    const records: MessageRecord[] = messages.map((m) => ({
+      id: m.id,
+      sessionId,
+      role: m.role as "user" | "assistant" | "tool",
+      content: m.content,
+      createdAt: m.createdAt,
+      status: m.status,
+      toolName: m.toolName,
+      toolData: m.toolData,
+      toolCallId: m.toolCallId,
+      toolCalls: m.toolCalls
+    }));
+    await putMessages(records);
   }
 
   const activeSession =
