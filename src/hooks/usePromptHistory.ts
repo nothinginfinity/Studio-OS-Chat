@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   listAllUserPrompts,
+  promotePromptToAsset,
   type PromptEntry,
+  type PromptAssetRecord,
+  type PromotePromptInput,
 } from "../lib/prompts";
 
 export type SortOrder = "newest" | "oldest";
@@ -14,6 +17,7 @@ export interface UsePromptHistoryResult {
   sortOrder: SortOrder;
   setSortOrder: (o: SortOrder) => void;
   refresh: () => void;
+  promote: (input: PromotePromptInput) => Promise<PromptAssetRecord>;
 }
 
 export function usePromptHistory(active: boolean): UsePromptHistoryResult {
@@ -48,6 +52,15 @@ export function usePromptHistory(active: boolean): UsePromptHistoryResult {
     return sortOrder === "newest" ? [...base] : [...base].reverse();
   }, [allPrompts, query, sortOrder]);
 
+  const promote = useCallback(
+    async (input: PromotePromptInput): Promise<PromptAssetRecord> => {
+      const asset = await promotePromptToAsset(input);
+      await load();
+      return asset;
+    },
+    [load]
+  );
+
   return {
     prompts: filtered,
     loading,
@@ -56,5 +69,6 @@ export function usePromptHistory(active: boolean): UsePromptHistoryResult {
     sortOrder,
     setSortOrder,
     refresh: load,
+    promote,
   };
 }

@@ -1,12 +1,18 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import { promotePromptToAsset } from "../lib/prompts";
 
 interface Props {
   onSend: (text: string) => Promise<void>;
   disabled?: boolean;
+  /** Optional: session id used to tag saved prompt assets */
+  sessionId?: string;
 }
 
-export function MessageComposer({ onSend, disabled }: Props) {
+export function MessageComposer({ onSend, disabled, sessionId }: Props) {
   const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleSend() {
     const value = text.trim();
@@ -15,18 +21,63 @@ export function MessageComposer({ onSend, disabled }: Props) {
     await onSend(value);
   }
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  const handleSavePrompt = useCallback(async () => {
+    const value = text.trim();
+    if (!value || saving) return;
+    setSaving(true);
+    try {
+      await promotePromptToAsset({
+        content: value,
+        title: value.slice(0, 72),
+        sessionId,
+        tags: [],
+        starred: false,
+        pinned: false,
+      });
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      setSavedFlash(true);
+      flashTimer.current = setTimeout(() => setSavedFlash(false), 1800);
+    } catch {
+      // non-fatal
+    } finally {
+      setSaving(false);
+    }
+  }, [text, saving, sessionId]);
+
   return (
     <div className="composer">
       <textarea
         rows={4}
-        placeholder="Ask your local model something..."
+        placeholder="Ask your local model something… (⌘↵ to send)"
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
         disabled={disabled}
       />
-      <button onClick={handleSend} disabled={disabled}>
-        Send
-      </button>
+      <div className="composer-actions">
+        <button
+          className="composer-save-btn"
+          onClick={handleSavePrompt}
+          disabled={disabled || saving || !text.trim()}
+          title="Save prompt to library"
+        >
+          {savedFlash ? "✓ Saved" : saving ? "Saving…" : "Save Prompt"}
+        </button>
+        <button
+          className="composer-send-btn"
+          onClick={handleSend}
+          disabled={disabled || !text.trim()}
+        >
+          Send
+        </button>
+      </div>
     </div>
   );
 }
