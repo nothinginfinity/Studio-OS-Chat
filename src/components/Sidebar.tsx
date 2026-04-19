@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ChatSettings, ChatSession } from "../lib/types";
+import type { ChatSettings, ChatSession, ChatExportRef } from "../lib/types";
 import { ModelSelector } from "./ModelSelector";
 import { SessionTitleEditor } from "./SessionTitleEditor";
 import { FilesPanel } from "./FilesPanel";
@@ -19,6 +19,7 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onNewSession: () => void;
   onRenameSession: (id: string, title: string) => void;
+  onSessionExported: (sessionId: string, exportRef: ChatExportRef) => void;
 }
 
 type Tab = "chats" | "files" | "spaces" | "settings";
@@ -32,10 +33,10 @@ export function Sidebar({
   onSelectSession,
   onNewSession,
   onRenameSession,
+  onSessionExported,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
 
-  // Active session object — passed to ExportChatButton
   const activeSession =
     sessions.find((s) => s.id === activeSessionId) ?? null;
 
@@ -49,7 +50,7 @@ export function Sidebar({
 
       <OllamaStatus settings={settings} />
 
-      {/* Tab bar — now includes Spaces */}
+      {/* Tab bar */}
       <div className="sidebar-tabs">
         <button
           className={tab === "chats" ? "tab active" : "tab"}
@@ -92,10 +93,20 @@ export function Sidebar({
                 }
                 onClick={() => onSelectSession(session.id)}
               >
-                <SessionTitleEditor
-                  title={session.title}
-                  onSave={(title) => onRenameSession(session.id, title)}
-                />
+                <div className="session-row-meta">
+                  <SessionTitleEditor
+                    title={session.title}
+                    onSave={(title) => onRenameSession(session.id, title)}
+                  />
+                  {session.exportRef?.exportPath ? (
+                    <span
+                      className="session-export-badge"
+                      title={session.exportRef.exportPath}
+                    >
+                      Exported
+                    </span>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>
@@ -116,13 +127,37 @@ export function Sidebar({
 
           <button onClick={onClearChat}>Clear Chat</button>
 
-          {/* Export current chat — shown in Chats tab for quick access */}
           <div className="sidebar-section-divider" />
-          <ExportChatButton session={activeSession} settings={settings} />
+
+          {/* Export panel */}
+          <div className="session-export-panel">
+            <ExportChatButton
+              session={activeSession}
+              settings={settings}
+              onExported={onSessionExported}
+            />
+            {activeSession?.exportRef ? (
+              <div className="export-status-detail">
+                <div>
+                  <strong>Format:</strong> {activeSession.exportRef.format}
+                </div>
+                <div>
+                  <strong>Path:</strong>{" "}
+                  <span className="export-path-text">
+                    {activeSession.exportRef.exportPath}
+                  </span>
+                </div>
+                <div>
+                  <strong>Exported:</strong>{" "}
+                  {new Date(activeSession.exportRef.exportedAt).toLocaleString()}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </>
       )}
 
-      {/* Files tab — FilesPanel + IngestDropZone */}
+      {/* Files tab */}
       {tab === "files" && (
         <>
           <FilesPanel />
@@ -142,7 +177,6 @@ export function Sidebar({
             onSettingsChange={handleSettingsChange}
           />
 
-          {/* Ollama-specific URL — only when Ollama is active */}
           {settings.provider === "ollama" && (
             <label className="field">
               <span>Ollama URL</span>
@@ -158,12 +192,10 @@ export function Sidebar({
             </label>
           )}
 
-          {/* ModelSelector only for Ollama */}
           {settings.provider === "ollama" && (
             <ModelSelector settings={settings} setSettings={setSettings} />
           )}
 
-          {/* GitHub PAT */}
           <div className="sidebar-section-divider" />
           <GitHubSettings />
         </>
