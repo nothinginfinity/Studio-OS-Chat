@@ -23,7 +23,7 @@ import { putFile, putChunks, putTerms } from "./db";
 import { tokenize } from "./fileIndex";
 import type { FileRecord, ChunkRecord, TermRecord, OCRMode } from "./types";
 
-// ── Tesseract.js lazy loader ─────────────────────────────────────────────────────
+// ── Tesseract.js lazy loader ────────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TesseractStatic = any;
@@ -32,16 +32,16 @@ let _tesseract: TesseractStatic | null = null;
 
 async function getTesseract(): Promise<TesseractStatic> {
   if (_tesseract) return _tesseract;
-  // Dynamic import from esm.sh — no bundler config needed
-  const mod = await import(
-    /* @vite-ignore */
-    "https://esm.sh/tesseract.js@5"
-  );
+  // Route through a plain string variable so TSC skips module resolution.
+  // @vite-ignore prevents Vite from bundling it — loaded from CDN at runtime.
+  const url: string = "https://esm.sh/tesseract.js@5";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mod = await (import(/* @vite-ignore */ url as any));
   _tesseract = mod.default ?? mod;
   return _tesseract;
 }
 
-// ── Mode → Tesseract PSM mapping ───────────────────────────────────────────────
+// ── Mode → Tesseract PSM mapping ───────────────────────────────────────────────────
 
 // Tesseract Page Segmentation Modes
 const PSM = {
@@ -59,7 +59,7 @@ function psmForMode(mode: OCRMode): number {
   }
 }
 
-// ── Raw OCR ────────────────────────────────────────────────────────────────────
+// ── Raw OCR ────────────────────────────────────────────────────────────────────────
 
 async function runTesseract(
   imageFile: File,
@@ -84,7 +84,7 @@ async function runTesseract(
   return data.text ?? "";
 }
 
-// ── Post-processing: raw text → markdown ─────────────────────────────────────────
+// ── Post-processing: raw text → markdown ───────────────────────────────────────────────
 
 function normalizeToMarkdown(raw: string, mode: OCRMode, sourceName: string): string {
   // Normalize line endings and collapse runs of blank lines
@@ -119,7 +119,7 @@ function normalizeToMarkdown(raw: string, mode: OCRMode, sourceName: string): st
   }
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────────────────────
 
 export interface OCRResult {
   /** The companion markdown string produced from the image */
@@ -218,7 +218,7 @@ export async function ingestImageAsMarkdown(
   return { markdown, fileRecord, sourceName: imageFile.name, mode, wordCount };
 }
 
-// ── Internal helpers ────────────────────────────────────────────────────────────
+// ── Internal helpers ─────────────────────────────────────────────────────────────────────
 
 function computeTf(tokens: string[]): Map<string, number> {
   const counts = new Map<string, number>();
