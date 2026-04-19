@@ -24,6 +24,12 @@ import type {
   ChatSettings,
 } from "./types";
 
+// ── CDN dynamic import helper ────────────────────────────────────────────────────
+// Uses Function constructor so TSC never sees the import() call and cannot
+// attempt to resolve the URL as a module specifier. Vite also ignores it.
+// eslint-disable-next-line @typescript-eslint/no-implied-eval
+const cdnImport = new Function("url", "return import(url)") as (url: string) => Promise<Record<string, unknown>>;
+
 // ── Markdown transcript ────────────────────────────────────────────────────────────────────
 
 function roleLabel(role: ChatMessage["role"]): string {
@@ -42,7 +48,6 @@ function messageToMarkdown(msg: ChatMessage): string {
 
   let body = msg.content ?? "";
 
-  // Attach tool call info if present
   if (msg.toolCalls?.length) {
     const calls = msg.toolCalls
       .map((tc) => {
@@ -53,7 +58,6 @@ function messageToMarkdown(msg: ChatMessage): string {
     body = body ? `${body}\n\n${calls}` : calls;
   }
 
-  // Tool result block
   if (msg.role === "tool" && msg.toolData !== undefined) {
     const data = JSON.stringify(msg.toolData, null, 2);
     body = `\`\`\`json\n${data}\n\`\`\``;
@@ -122,7 +126,7 @@ function buildContext(
   };
 }
 
-// ── Sources JSON (file search results referenced in session) ─────────────────────
+// ── Sources JSON ───────────────────────────────────────────────────────────────────────
 
 function extractSources(session: ChatSession): unknown[] {
   const sources: unknown[] = [];
@@ -137,7 +141,7 @@ function extractSources(session: ChatSession): unknown[] {
 // ── Slug generator ────────────────────────────────────────────────────────────────────
 
 function toSlug(title: string, date: Date): string {
-  const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
+  const dateStr = date.toISOString().slice(0, 10);
   const titleSlug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -149,17 +153,13 @@ function toSlug(title: string, date: Date): string {
 // ── Bundle type ──────────────────────────────────────────────────────────────────────
 
 export interface ChatExportBundle {
-  /** Slug used as folder name and repo name */
   slug: string;
-  /** Files to write: path → string content */
   files: Record<string, string>;
-  /** The ArtifactRecord stored in IndexedDB */
   artifact: ArtifactRecord;
 }
 
 // ── ArtifactRecord persistence ────────────────────────────────────────────────────────
 
-// Reuse the generic settings store for artifacts list (avoids a db.ts schema bump)
 const ARTIFACTS_KEY = "__artifacts__";
 
 async function loadArtifacts(): Promise<ArtifactRecord[]> {
@@ -190,19 +190,6 @@ export async function updateArtifactRepoUrl(
 
 // ── Public API ───────────────────────────────────────────────────────────────────
 
-/**
- * Serialise a ChatSession into a ChatExportBundle and persist the
- * ArtifactRecord to IndexedDB.
- *
- * The returned `files` map contains:
- *   "chat.md"      — full markdown transcript
- *   "context.json" — session metadata + model info
- *   "sources.json" — file_search tool results referenced in the session
- *   "README.md"    — human-friendly intro for GitHub repo view
- *
- * @param session   The ChatSession to export
- * @param settings  Optional ChatSettings for model/provider metadata
- */
 export async function exportChat(
   session: ChatSession,
   settings?: Partial<ChatSettings>
@@ -260,21 +247,23 @@ export async function exportChat(
 
 /**
  * Triggers a browser download of the export bundle as a .zip file.
- * Uses fflate (esm.sh) — ~20 KB, no bundler config required.
+ * Uses fflate (esm.sh CDN) — ~20 KB, no bundler config required.
+ *
+ * cdnImport() uses the Function constructor so TypeScript never sees the
+ * import() call and cannot attempt to resolve the URL as a module specifier.
  */
 export async function downloadExportAsZip(bundle: ChatExportBundle): Promise<void> {
-  // Route through a plain string variable so TSC skips module resolution.
-  // @vite-ignore prevents Vite from bundling it — loaded from CDN at runtime.
-  const url: string = "https://esm.sh/fflate@0.8";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { zipSync, strToU8 } = await (import(/* @vite-ignore */ url as any));
+  const { zipSync, strToU8 } = await cdnImport("https://esm.sh/fflate@0.8");
+
+  const zipFn = zipSync as (entries: Record<string, Uint8Array>) => Uint8Array;
+  const toU8 = strToU8 as (str: string) => Uint8Array;
 
   const zipEntries: Record<string, Uint8Array> = {};
   for (const [filePath, content] of Object.entries(bundle.files)) {
-    zipEntries[`${bundle.slug}/${filePath}`] = strToU8(content);
+    zipEntries[`${bundle.slug}/${filePath}`] = toU8(content);
   }
 
-  const zipped = zipSync(zipEntries);
+  const zipped = zipFn(zipEntries);
   const blob = new Blob([zipped], { type: "application/zip" });
   const blobUrl = URL.createObjectURL(blob);
 
