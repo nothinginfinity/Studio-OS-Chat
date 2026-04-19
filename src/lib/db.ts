@@ -288,7 +288,8 @@ export async function putFileRoot(root: FileRootRecord): Promise<void> {
 }
 
 export async function listFileRoots(): Promise<FileRootRecord[]> {
-  const db = await openDb();\n  const t = tx(db, "fileRoots");
+  const db = await openDb();
+  const t = tx(db, "fileRoots");
   return getAll<FileRootRecord>(t.objectStore("fileRoots"));
 }
 
