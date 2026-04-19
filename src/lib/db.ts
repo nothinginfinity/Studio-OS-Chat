@@ -89,7 +89,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-// ── Generic helpers ───────────────────────────────────────────────────────────
+// ── Generic helpers ─────────────────────────────────────────────────────
 
 function tx(
   db: IDBDatabase,
@@ -127,7 +127,7 @@ function getAllByIndex<T>(
   });
 }
 
-// ── Sessions ──────────────────────────────────────────────────────────────────
+// ── Sessions ──────────────────────────────────────────────────────────────
 
 export async function putSession(session: SessionRecord): Promise<void> {
   const db = await openDb();
@@ -171,7 +171,7 @@ export async function renameSession(
   });
 }
 
-// ── Messages ──────────────────────────────────────────────────────────────────
+// ── Messages ──────────────────────────────────────────────────────────────
 
 export async function putMessages(messages: MessageRecord[]): Promise<void> {
   if (!messages.length) return;
@@ -192,7 +192,7 @@ export async function listMessages(sessionId: string): Promise<MessageRecord[]> 
   return rows.sort((a, b) => a.createdAt - b.createdAt);
 }
 
-// ── Settings ──────────────────────────────────────────────────────────────────
+// ── Settings ──────────────────────────────────────────────────────────────
 
 export async function getSetting<T>(key: string): Promise<T | null> {
   const db = await openDb();
@@ -209,7 +209,7 @@ export async function putSetting(key: string, value: unknown): Promise<void> {
   await put(t.objectStore("settings"), { key, value });
 }
 
-// ── File roots ────────────────────────────────────────────────────────────────
+// ── File roots ──────────────────────────────────────────────────────────────
 
 export async function putFileRoot(root: FileRootRecord): Promise<void> {
   const db = await openDb();
@@ -223,7 +223,7 @@ export async function listFileRoots(): Promise<FileRootRecord[]> {
   return getAll<FileRootRecord>(t.objectStore("fileRoots"));
 }
 
-// ── Files ─────────────────────────────────────────────────────────────────────
+// ── Files ────────────────────────────────────────────────────────────────────
 
 export async function putFile(file: FileRecord): Promise<void> {
   const db = await openDb();
@@ -240,7 +240,14 @@ export async function listFilesByRoot(rootId: string): Promise<FileRecord[]> {
   return getAllByIndex<FileRecord>(t.objectStore("files"), "rootId", IDBKeyRange.only(rootId));
 }
 
-// ── Chunks ────────────────────────────────────────────────────────────────────
+/** Returns every FileRecord across all roots — used by search.ts to build the path cache. */
+export async function listAllFiles(): Promise<FileRecord[]> {
+  const db = await openDb();
+  const t = tx(db, "files");
+  return getAll<FileRecord>(t.objectStore("files"));
+}
+
+// ── Chunks ───────────────────────────────────────────────────────────────────
 
 export async function putChunks(chunks: ChunkRecord[]): Promise<void> {
   if (!chunks.length) return;
@@ -261,7 +268,7 @@ export async function listChunksByFile(fileId: string): Promise<ChunkRecord[]> {
   return rows.sort((a, b) => a.ordinal - b.ordinal);
 }
 
-// ── Terms ─────────────────────────────────────────────────────────────────────
+// ── Terms ───────────────────────────────────────────────────────────────────
 
 export async function putTerms(terms: TermRecord[]): Promise<void> {
   if (!terms.length) return;
@@ -281,7 +288,7 @@ export async function getTermChunks(term: string): Promise<TermRecord[]> {
   );
 }
 
-// ── Search ────────────────────────────────────────────────────────────────────
+// ── Search ───────────────────────────────────────────────────────────────────
 
 export async function searchChunksByTerms(
   queryTerms: string[],
