@@ -4,12 +4,14 @@
  * File upload drop zone for OCR + PDF ingestion.
  * - Drag-and-drop or click-to-browse
  * - Routes to ingestImageAsMarkdown() for images, ingestPdfAsMarkdown() for PDFs
+ * - After ingestion, indexes content via indexFile() so file_search works
  * - Mode selector for OCR: screenshot / document / code / receipt
  * - Shows per-file progress and result status
  */
 import { useState, useRef, useCallback } from "react";
 import { ingestImageAsMarkdown } from "../lib/ocr";
 import { ingestPdfAsMarkdown } from "../lib/pdfIngestion";
+import { indexFile } from "../lib/fileIndex";
 import type { OCRMode } from "../lib/types";
 
 type FileStatus = "pending" | "processing" | "done" | "error";
@@ -53,6 +55,10 @@ export function IngestDropZone() {
           updateFile(file.name, { status: "error", message: "PDF extraction returned no content" });
           return;
         }
+
+        // Wire into searchable chunk index so file_search can find this content
+        await indexFile(file, DEFAULT_ROOT, file.name);
+
         updateFile(file.name, {
           status: "done",
           message: `Indexed — ${result.pageCount} page${
@@ -65,6 +71,16 @@ export function IngestDropZone() {
           updateFile(file.name, { status: "error", message: "OCR returned no content" });
           return;
         }
+
+        // Wire OCR output into searchable chunk index
+        // Wrap the markdown text as a synthetic File so indexFile can chunk + store it
+        const markdownBlob = new Blob([result.markdown], { type: "text/plain" });
+        const syntheticFile = new File([markdownBlob], file.name + ".md", {
+          type: "text/plain",
+          lastModified: Date.now(),
+        });
+        await indexFile(syntheticFile, DEFAULT_ROOT, file.name + ".md");
+
         updateFile(file.name, {
           status: "done",
           message: `OCR done — ${result.wordCount} words ✓`,
@@ -151,7 +167,7 @@ export function IngestDropZone() {
         <span className="ingest-dropzone-icon">📂</span>
         <span className="ingest-dropzone-label">Drop images or PDFs here</span>
         <span className="ingest-dropzone-sub">
-          Images → OCR ({mode}) · PDFs → text extraction
+          Images → OCR ({mode}) · PDFs → text extraction + search index
         </span>
         <input
           ref={inputRef}
