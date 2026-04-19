@@ -24,7 +24,7 @@ import type {
   ChatSettings,
 } from "./types";
 
-// ── Markdown transcript ───────────────────────────────────────────────────────────
+// ── Markdown transcript ────────────────────────────────────────────────────────────────────
 
 function roleLabel(role: ChatMessage["role"]): string {
   switch (role) {
@@ -85,7 +85,7 @@ export function sessionToMarkdown(session: ChatSession): string {
   return header + body;
 }
 
-// ── Context JSON ──────────────────────────────────────────────────────────────────
+// ── Context JSON ──────────────────────────────────────────────────────────────────────
 
 export interface ExportContext {
   sessionId: string;
@@ -122,7 +122,7 @@ function buildContext(
   };
 }
 
-// ── Sources JSON (file search results referenced in session) ─────────────────
+// ── Sources JSON (file search results referenced in session) ─────────────────────
 
 function extractSources(session: ChatSession): unknown[] {
   const sources: unknown[] = [];
@@ -134,7 +134,7 @@ function extractSources(session: ChatSession): unknown[] {
   return sources;
 }
 
-// ── Slug generator ────────────────────────────────────────────────────────────────
+// ── Slug generator ────────────────────────────────────────────────────────────────────
 
 function toSlug(title: string, date: Date): string {
   const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
@@ -146,7 +146,7 @@ function toSlug(title: string, date: Date): string {
   return `${dateStr}-${titleSlug}`;
 }
 
-// ── Bundle type ──────────────────────────────────────────────────────────────────
+// ── Bundle type ──────────────────────────────────────────────────────────────────────
 
 export interface ChatExportBundle {
   /** Slug used as folder name and repo name */
@@ -157,7 +157,7 @@ export interface ChatExportBundle {
   artifact: ArtifactRecord;
 }
 
-// ── ArtifactRecord persistence ───────────────────────────────────────────────────
+// ── ArtifactRecord persistence ────────────────────────────────────────────────────────
 
 // Reuse the generic settings store for artifacts list (avoids a db.ts schema bump)
 const ARTIFACTS_KEY = "__artifacts__";
@@ -188,7 +188,7 @@ export async function updateArtifactRepoUrl(
   await putSetting(ARTIFACTS_KEY, updated);
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────────────────
 
 /**
  * Serialise a ChatSession into a ChatExportBundle and persist the
@@ -256,17 +256,18 @@ export async function exportChat(
   return { slug, files, artifact };
 }
 
-// ── Download helper (ZIP via browser) ────────────────────────────────────────
+// ── Download helper (ZIP via browser) ──────────────────────────────────────────
 
 /**
  * Triggers a browser download of the export bundle as a .zip file.
  * Uses fflate (esm.sh) — ~20 KB, no bundler config required.
  */
 export async function downloadExportAsZip(bundle: ChatExportBundle): Promise<void> {
-  const { zipSync, strToU8 } = await import(
-    /* @vite-ignore */
-    "https://esm.sh/fflate@0.8"
-  );
+  // Route through a plain string variable so TSC skips module resolution.
+  // @vite-ignore prevents Vite from bundling it — loaded from CDN at runtime.
+  const url: string = "https://esm.sh/fflate@0.8";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { zipSync, strToU8 } = await (import(/* @vite-ignore */ url as any));
 
   const zipEntries: Record<string, Uint8Array> = {};
   for (const [filePath, content] of Object.entries(bundle.files)) {
@@ -275,12 +276,12 @@ export async function downloadExportAsZip(bundle: ChatExportBundle): Promise<voi
 
   const zipped = zipSync(zipEntries);
   const blob = new Blob([zipped], { type: "application/zip" });
-  const url = URL.createObjectURL(blob);
+  const blobUrl = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
-  a.href = url;
+  a.href = blobUrl;
   a.download = `${bundle.slug}.zip`;
   a.click();
 
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
 }
