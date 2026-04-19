@@ -1,11 +1,12 @@
 import { usePromptHistory, type SortOrder } from "../hooks/usePromptHistory";
 import type { PromotePromptInput } from "../lib/types";
-import { uid } from "../lib/utils";
 
 interface Props {
   active: boolean;
   onOpenSession: (sessionId: string) => void;
   onInsertPrompt?: (content: string) => void;
+  onReusePrompt?: (text: string) => void;
+  onNewChatFromPrompt?: (text: string) => Promise<unknown>;
 }
 
 function relativeTime(ts: number): string {
@@ -20,7 +21,13 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) {
+export function PromptHistory({
+  active,
+  onOpenSession,
+  onInsertPrompt,
+  onReusePrompt,
+  onNewChatFromPrompt,
+}: Props) {
   const { prompts, loading, query, setQuery, sortOrder, setSortOrder, refresh, promote } =
     usePromptHistory(active);
 
@@ -112,6 +119,24 @@ export function PromptHistory({ active, onOpenSession, onInsertPrompt }: Props) 
                   aria-label="Insert prompt into composer"
                 >
                   Insert
+                </button>
+              )}
+              {onReusePrompt && (
+                <button
+                  className="prompt-card-btn"
+                  onClick={() => onReusePrompt(p.promptText)}
+                  aria-label="Reuse prompt in current chat"
+                >
+                  Reuse
+                </button>
+              )}
+              {onNewChatFromPrompt && (
+                <button
+                  className="prompt-card-btn"
+                  onClick={() => onNewChatFromPrompt(p.promptText)}
+                  aria-label="Start new chat with this prompt"
+                >
+                  New Chat
                 </button>
               )}
               {!p.assetId && (
