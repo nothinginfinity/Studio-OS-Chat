@@ -5,6 +5,10 @@ import { SessionTitleEditor } from "./SessionTitleEditor";
 import { FilesPanel } from "./FilesPanel";
 import { OllamaStatus } from "./OllamaStatus";
 import ProviderSettings from "./ProviderSettings";
+import { IngestDropZone } from "./IngestDropZone";
+import { ExportChatButton } from "./ExportChatButton";
+import { GitHubSettings } from "./GitHubSettings";
+import { SpacesPanel } from "./SpacesPanel";
 
 interface SidebarProps {
   settings: ChatSettings;
@@ -17,7 +21,7 @@ interface SidebarProps {
   onRenameSession: (id: string, title: string) => void;
 }
 
-type Tab = "chats" | "files" | "settings";
+type Tab = "chats" | "files" | "spaces" | "settings";
 
 export function Sidebar({
   settings,
@@ -27,9 +31,13 @@ export function Sidebar({
   activeSessionId,
   onSelectSession,
   onNewSession,
-  onRenameSession
+  onRenameSession,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>("chats");
+
+  // Active session object — passed to ExportChatButton
+  const activeSession =
+    sessions.find((s) => s.id === activeSessionId) ?? null;
 
   function handleSettingsChange(next: ChatSettings) {
     setSettings(next);
@@ -41,6 +49,7 @@ export function Sidebar({
 
       <OllamaStatus settings={settings} />
 
+      {/* Tab bar — now includes Spaces */}
       <div className="sidebar-tabs">
         <button
           className={tab === "chats" ? "tab active" : "tab"}
@@ -55,13 +64,21 @@ export function Sidebar({
           Files
         </button>
         <button
+          className={tab === "spaces" ? "tab active" : "tab"}
+          onClick={() => setTab("spaces")}
+        >
+          Spaces
+        </button>
+        <button
           className={tab === "settings" ? "tab active" : "tab"}
           onClick={() => setTab("settings")}
+          aria-label="Settings"
         >
           ⚙️
         </button>
       </div>
 
+      {/* Chats tab */}
       {tab === "chats" && (
         <>
           <button onClick={onNewSession}>New Chat</button>
@@ -70,7 +87,9 @@ export function Sidebar({
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className={session.id === activeSessionId ? "session active" : "session"}
+                className={
+                  session.id === activeSessionId ? "session active" : "session"
+                }
                 onClick={() => onSelectSession(session.id)}
               >
                 <SessionTitleEditor
@@ -87,16 +106,35 @@ export function Sidebar({
               rows={4}
               value={settings.systemPrompt}
               onChange={(e) =>
-                setSettings((prev) => ({ ...prev, systemPrompt: e.target.value }))
+                setSettings((prev) => ({
+                  ...prev,
+                  systemPrompt: e.target.value,
+                }))
               }
             />
           </label>
+
           <button onClick={onClearChat}>Clear Chat</button>
+
+          {/* Export current chat — shown in Chats tab for quick access */}
+          <div className="sidebar-section-divider" />
+          <ExportChatButton session={activeSession} settings={settings} />
         </>
       )}
 
-      {tab === "files" && <FilesPanel />}
+      {/* Files tab — FilesPanel + IngestDropZone */}
+      {tab === "files" && (
+        <>
+          <FilesPanel />
+          <div className="sidebar-section-divider" />
+          <IngestDropZone />
+        </>
+      )}
 
+      {/* Spaces tab */}
+      {tab === "spaces" && <SpacesPanel />}
+
+      {/* Settings tab */}
       {tab === "settings" && (
         <>
           <ProviderSettings
@@ -104,23 +142,30 @@ export function Sidebar({
             onSettingsChange={handleSettingsChange}
           />
 
-          {/* Ollama-specific URL — only shown when Ollama is active */}
+          {/* Ollama-specific URL — only when Ollama is active */}
           {settings.provider === "ollama" && (
             <label className="field">
               <span>Ollama URL</span>
               <input
                 value={settings.ollamaBaseUrl}
                 onChange={(e) =>
-                  setSettings((prev) => ({ ...prev, ollamaBaseUrl: e.target.value }))
+                  setSettings((prev) => ({
+                    ...prev,
+                    ollamaBaseUrl: e.target.value,
+                  }))
                 }
               />
             </label>
           )}
 
-          {/* ModelSelector only for Ollama (cloud providers use ProviderSettings dropdown) */}
+          {/* ModelSelector only for Ollama */}
           {settings.provider === "ollama" && (
             <ModelSelector settings={settings} setSettings={setSettings} />
           )}
+
+          {/* GitHub PAT */}
+          <div className="sidebar-section-divider" />
+          <GitHubSettings />
         </>
       )}
     </aside>
