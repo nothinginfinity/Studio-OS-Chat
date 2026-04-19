@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { indexDirectory, indexFileList } from "../lib/fileIndex";
-import { putFileRoot } from "../lib/db";
+import { putFileRoot, listFileRoots } from "../lib/db";
 import { uid } from "../lib/utils";
 import type { FileRootRecord } from "../lib/types";
 
@@ -15,6 +15,11 @@ export function useFiles() {
   const [progress, setProgress] = useState<IndexingProgress | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load persisted roots from IndexedDB on mount — fixes empty roots after reload
+  useEffect(() => {
+    listFileRoots().then(setRoots).catch(() => {});
+  }, []);
 
   const addFolder = useCallback(async () => {
     setError(null);
