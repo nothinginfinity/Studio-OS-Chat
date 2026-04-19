@@ -78,6 +78,7 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [indexedFilePaths, setIndexedFilePaths] = useState<string[]>([]);
   const [draftText, setDraftText] = useState("");
 
@@ -92,33 +93,41 @@ export function useChat() {
 
   useEffect(() => {
     async function loadFromDb() {
-      const records = await listSessions();
-      const hydrated: ChatSession[] = await Promise.all(
-        records.map(async (rec) => {
-          const msgs = await listMessages(rec.id);
-          return {
-            id: rec.id,
-            title: rec.title,
-            titleSource: rec.titleSource,
-            createdAt: rec.createdAt,
-            updatedAt: rec.updatedAt,
-            messages: msgs as ChatMessage[],
-            exportRef:
-              rec.exportArtifactId && rec.exportPath && rec.exportedAt
-                ? {
-                    artifactId: rec.exportArtifactId,
-                    slug: deriveSlugFromExportPath(rec.exportPath),
-                    exportPath: rec.exportPath,
-                    exportedAt: rec.exportedAt,
-                    format: "osmd@1" as const,
-                  }
-                : undefined,
-          };
-        })
-      );
-      setSessions(hydrated.sort((a, b) => b.updatedAt - a.updatedAt));
-      if (hydrated.length > 0) setActiveSessionIdState(hydrated[0].id);
-      setDbReady(true);
+      try {
+        const records = await listSessions();
+        const hydrated: ChatSession[] = await Promise.all(
+          records.map(async (rec) => {
+            const msgs = await listMessages(rec.id);
+            return {
+              id: rec.id,
+              title: rec.title,
+              titleSource: rec.titleSource,
+              createdAt: rec.createdAt,
+              updatedAt: rec.updatedAt,
+              messages: msgs as ChatMessage[],
+              exportRef:
+                rec.exportArtifactId && rec.exportPath && rec.exportedAt
+                  ? {
+                      artifactId: rec.exportArtifactId,
+                      slug: deriveSlugFromExportPath(rec.exportPath),
+                      exportPath: rec.exportPath,
+                      exportedAt: rec.exportedAt,
+                      format: "osmd@1" as const,
+                    }
+                  : undefined,
+            };
+          })
+        );
+        setSessions(hydrated.sort((a, b) => b.updatedAt - a.updatedAt));
+        if (hydrated.length > 0) setActiveSessionIdState(hydrated[0].id);
+      } catch (err) {
+        console.error("[useChat] loadFromDb failed:", err);
+        setDbError(
+          err instanceof Error ? err.message : "Database failed to open. Try clearing site data."
+        );
+      } finally {
+        setDbReady(true);
+      }
     }
     loadFromDb();
   }, []);
@@ -529,6 +538,7 @@ export function useChat() {
     isLoading,
     error,
     dbReady,
+    dbError,
     draftText,
     setDraftText,
     reusePromptText,
