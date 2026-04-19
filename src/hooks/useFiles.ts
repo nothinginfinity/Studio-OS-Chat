@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import { indexDirectory, indexFileList } from "../lib/fileIndex";
+import { putFileRoot } from "../lib/db";
+import { uid } from "../lib/utils";
 import type { FileRootRecord } from "../lib/types";
 
 export interface IndexingProgress {
@@ -20,26 +22,46 @@ export function useFiles() {
       if (typeof (window as any).showDirectoryPicker === "function") {
         const handle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker();
         setIsIndexing(true);
-        const root = await indexDirectory(handle, (prog) => setProgress(prog));
-        setRoots((prev) => [
-          ...prev.filter((r) => r.id !== root.id),
-          root
-        ]);
+        const now = Date.now();
+        const rootId = uid();
+        const rootRecord: FileRootRecord = {
+          id: rootId,
+          name: handle.name,
+          kind: "directory",
+          addedAt: now,
+          lastIndexedAt: null
+        };
+        await putFileRoot(rootRecord);
+        await indexDirectory(handle, (prog) =>
+          setProgress({ total: prog.total, done: prog.done, currentFile: prog.currentFile })
+        );
+        const finished: FileRootRecord = { ...rootRecord, lastIndexedAt: Date.now() };
+        await putFileRoot(finished);
+        setRoots((prev) => [...prev.filter((r) => r.id !== rootId), finished]);
       } else {
-        // Fallback: file input
         const input = document.createElement("input");
         input.type = "file";
         input.multiple = true;
         input.onchange = async () => {
           if (!input.files?.length) return;
           setIsIndexing(true);
-          const root = await indexFileList(Array.from(input.files), (prog) =>
-            setProgress(prog)
+          const files = Array.from(input.files);
+          const now = Date.now();
+          const rootId = uid();
+          const rootRecord: FileRootRecord = {
+            id: rootId,
+            name: "Uploaded files",
+            kind: "files",
+            addedAt: now,
+            lastIndexedAt: null
+          };
+          await putFileRoot(rootRecord);
+          await indexFileList(files, rootId, (prog) =>
+            setProgress({ total: prog.total, done: prog.done, currentFile: prog.currentFile })
           );
-          setRoots((prev) => [
-            ...prev.filter((r) => r.id !== root.id),
-            root
-          ]);
+          const finished: FileRootRecord = { ...rootRecord, lastIndexedAt: Date.now() };
+          await putFileRoot(finished);
+          setRoots((prev) => [...prev.filter((r) => r.id !== rootId), finished]);
           setIsIndexing(false);
           setProgress(null);
         };
@@ -65,13 +87,23 @@ export function useFiles() {
       if (!input.files?.length) return;
       setIsIndexing(true);
       try {
-        const root = await indexFileList(Array.from(input.files), (prog) =>
-          setProgress(prog)
+        const files = Array.from(input.files);
+        const now = Date.now();
+        const rootId = uid();
+        const rootRecord: FileRootRecord = {
+          id: rootId,
+          name: "Uploaded files",
+          kind: "files",
+          addedAt: now,
+          lastIndexedAt: null
+        };
+        await putFileRoot(rootRecord);
+        await indexFileList(files, rootId, (prog) =>
+          setProgress({ total: prog.total, done: prog.done, currentFile: prog.currentFile })
         );
-        setRoots((prev) => [
-          ...prev.filter((r) => r.id !== root.id),
-          root
-        ]);
+        const finished: FileRootRecord = { ...rootRecord, lastIndexedAt: Date.now() };
+        await putFileRoot(finished);
+        setRoots((prev) => [...prev.filter((r) => r.id !== rootId), finished]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to index files");
       } finally {
