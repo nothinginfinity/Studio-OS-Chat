@@ -61,3 +61,18 @@ export function getToolNames(): string[] {
 export function registerTool(tool: ToolDefinition): void {
   register(tool);
 }
+
+// ── Legacy / convenience aliases (used by useChat.ts) ────────────────────────────
+
+/**
+ * Array of all registered tool definitions.
+ * Equivalent to getAllTools() but exposed as a stable reference
+ * for use in provider calls that expect a tools array.
+ */
+export const toolRegistry: ToolDefinition[] = getAllTools();
+
+/**
+ * Look up a tool by name. Returns undefined if not found.
+ * Alias for getTool() — matches the import name used in useChat.ts.
+ */
+export const getToolByName = getTool;
