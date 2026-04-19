@@ -5,6 +5,7 @@ import {
   putMessages,
   listMessages,
   renameSession as dbRenameSession,
+  deleteSession as dbDeleteSession,
   listAllFiles
 } from "../lib/db";
 import {
@@ -204,6 +205,22 @@ export function useChat() {
     setDraftText(text);
     return session;
   }
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    // Remove from IndexedDB
+    await dbDeleteSession(sessionId);
+    // Remove from React state and shift active session if needed
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== sessionId);
+      return next;
+    });
+    setActiveSessionIdState((prev) => {
+      if (prev !== sessionId) return prev;
+      // Pick the next available session
+      const remaining = sessions.filter((s) => s.id !== sessionId);
+      return remaining[0]?.id ?? null;
+    });
+  }, [sessions]);
 
   function setActiveSession(id: string) {
     setActiveSessionIdState(id);
@@ -527,6 +544,7 @@ export function useChat() {
     activeSessionId,
     createSession,
     createSessionWithDraft,
+    deleteSession,
     setActiveSession,
     renameSession,
     markSessionExported,

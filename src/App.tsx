@@ -10,6 +10,7 @@ export default function App() {
     activeSessionId,
     createSession,
     createSessionWithDraft,
+    deleteSession,
     setActiveSession,
     renameSession,
     markSessionExported,
@@ -66,6 +67,7 @@ export default function App() {
         onInsertPrompt={handleInsertPrompt}
         onReusePrompt={reusePromptText}
         onCreateSessionWithDraft={createSessionWithDraft}
+        onDeleteSession={deleteSession}
       />
       <ChatWindow
         messages={messages}

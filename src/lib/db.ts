@@ -91,7 +91,6 @@ function openDb(): Promise<IDBDatabase> {
         t.createIndex("chunkId", "chunkId");
       }
 
-      // v3: prompt asset stores
       if (!db.objectStoreNames.contains("promptAssets")) {
         const p = db.createObjectStore("promptAssets", { keyPath: "id" });
         p.createIndex("sessionId", "sessionId");
@@ -129,6 +128,14 @@ function tx(db: IDBDatabase, stores: string | string[], mode: IDBTransactionMode
 function put(store: IDBObjectStore, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = store.put(value);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function del(store: IDBObjectStore, key: IDBValidKey): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = store.delete(key);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
@@ -215,6 +222,22 @@ export async function updateSessionExportRef(
     exportedAt: exportRef.exportedAt,
     exportFormat: exportRef.exportFormat,
   });
+}
+
+/**
+ * deleteSession — removes the session record and all its messages from IndexedDB.
+ * Cascade deletes messages by sessionId index.
+ */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const db = await openDb();
+  // Delete all messages for this session first
+  const msgTx = tx(db, "messages", "readwrite");
+  const msgStore = msgTx.objectStore("messages");
+  const messages = await getAllByIndex<MessageRecord>(msgStore, "sessionId", IDBKeyRange.only(sessionId));
+  await Promise.all(messages.map((m) => del(msgStore, m.id)));
+  // Delete the session record
+  const sesTx = tx(db, "sessions", "readwrite");
+  await del(sesTx.objectStore("sessions"), sessionId);
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
