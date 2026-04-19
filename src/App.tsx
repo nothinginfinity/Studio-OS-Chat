@@ -21,6 +21,7 @@ export default function App() {
     isLoading,
     error,
     dbReady,
+    dbError,
     draftText,
     setDraftText,
     reusePromptText,
@@ -34,6 +35,18 @@ export default function App() {
     return (
       <div className="app-loading">
         <span>Loading…</span>
+      </div>
+    );
+  }
+
+  if (dbError) {
+    return (
+      <div className="app-loading" style={{ flexDirection: "column", gap: "12px", padding: "24px", textAlign: "center" }}>
+        <span style={{ fontSize: "18px" }}>⚠️ Database error</span>
+        <span style={{ fontSize: "13px", color: "#e08080", maxWidth: "480px" }}>{dbError}</span>
+        <span style={{ fontSize: "12px", color: "#666" }}>
+          Try clearing site data: Settings → Privacy → Clear browsing data → Cached images and files + Cookies.
+        </span>
       </div>
     );
   }
