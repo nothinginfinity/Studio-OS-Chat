@@ -15,6 +15,11 @@ import {
   chatWithOllamaOnce,
   chatWithOllamaStream
 } from "../lib/ollama";
+import {
+  chatWithOpenAIStream,
+  chatWithOpenAIOnce
+} from "../lib/openai";
+import { getProvider } from "../lib/providers";
 import { now, uid } from "../lib/utils";
 import { deriveSessionTitle } from "../components/SessionTitleEditor";
 import type {
@@ -51,7 +56,6 @@ export function useChat() {
   const [error, setError] = useState<string>("");
   const [dbReady, setDbReady] = useState(false);
 
-  // Load sessions from IndexedDB on mount
   useEffect(() => {
     async function loadFromDb() {
       const records = await listSessions();
@@ -158,6 +162,8 @@ export function useChat() {
     return base;
   }, [messages, settings.systemPrompt]);
 
+  const isOllama = settings.provider === "ollama" || !settings.provider;
+
   async function sendMessage(content: string) {
     const trimmed = content.trim();
     if (!trimmed || isLoading) return;
@@ -183,7 +189,9 @@ export function useChat() {
 
     const sessionWithUser: ChatSession = {
       ...session,
-      title: session.messages.length === 0 ? deriveSessionTitle([{ role: "user", content: trimmed }]) : session.title,
+      title: session.messages.length === 0
+        ? deriveSessionTitle([{ role: "user", content: trimmed }])
+        : session.title,
       titleSource: session.messages.length === 0 ? "auto" : session.titleSource,
       updatedAt: now(),
       messages: [...session.messages, userMessage, assistantDraft]
@@ -194,29 +202,142 @@ export function useChat() {
 
     try {
       const streamedToolCalls: ToolCall[] = [];
+      const allMessages: OllamaMessage[] = [
+        ...ollamaMessages,
+        { role: "user", content: trimmed }
+      ];
 
+      // ── OpenAI-compatible path (Groq, OpenAI, Gemini, xAI, etc.) ─────────
+      if (!isOllama) {
+        const provider = getProvider(settings.provider);
+        if (!provider) throw new Error(`Unknown provider: ${settings.provider}`);
+        if (!settings.apiKey) throw new Error(`No API key set for ${provider.name}. Go to ⚙️ Settings → ${provider.name} → Save your key.`);
+
+        const result = await chatWithOpenAIStream(
+          {
+            baseUrl: provider.baseUrl,
+            apiKey: settings.apiKey,
+            model: settings.model,
+            messages: allMessages,
+            tools: toolRegistry
+          },
+          {
+            onTextDelta: (chunk) => {
+              setSessions((prev) =>
+                prev.map((s) =>
+                  s.id !== session.id ? s : {
+                    ...s,
+                    updatedAt: now(),
+                    messages: s.messages.map((m) =>
+                      m.id === assistantDraftId
+                        ? { ...m, content: m.content + chunk, status: "streaming" as const }
+                        : m
+                    )
+                  }
+                )
+              );
+            },
+            onToolCalls: (calls) => {
+              for (const c of calls) streamedToolCalls.push(c);
+            }
+          }
+        );
+
+        const finalAssistant: ChatMessage = {
+          id: assistantDraftId,
+          role: "assistant",
+          content: result.content,
+          createdAt: assistantDraft.createdAt,
+          status: "complete",
+          toolCalls: streamedToolCalls.length ? streamedToolCalls : undefined
+        };
+
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id !== session.id ? s : {
+              ...s, updatedAt: now(),
+              messages: [...s.messages.filter((m) => m.id !== assistantDraftId), finalAssistant]
+            }
+          )
+        );
+
+        // Auto-title refinement
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== session.id || s.titleSource !== "auto") return s;
+            const refined = deriveSessionTitle([
+              { role: "user", content: trimmed },
+              { role: "assistant", content: result.content }
+            ]);
+            putSession(sessionToRecord({ ...s, title: refined }, s.messages.length));
+            return { ...s, title: refined };
+          })
+        );
+
+        // Tool execution
+        if (streamedToolCalls.length > 0) {
+          let toolMessages: ChatMessage[] = [];
+          for (const call of streamedToolCalls) {
+            const tool = getToolByName(call.function.name);
+            if (!tool) continue;
+            const result2 = await tool.run(call.function.arguments);
+            toolMessages = [...toolMessages, {
+              id: uid(), role: "tool", content: JSON.stringify(result2),
+              createdAt: now(), toolName: tool.name, toolData: result2, toolCallId: call.id
+            }];
+          }
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id !== session.id ? s : { ...s, updatedAt: now(), messages: [...s.messages, ...toolMessages] }
+            )
+          );
+          const followup = await chatWithOpenAIOnce({
+            baseUrl: provider.baseUrl,
+            apiKey: settings.apiKey,
+            model: settings.model,
+            messages: [
+              ...allMessages,
+              { role: "assistant", content: finalAssistant.content, tool_calls: streamedToolCalls },
+              ...toolMessages.map((m) => ({
+                role: "tool" as const, content: m.content,
+                tool_name: m.toolName, tool_call_id: m.toolCallId
+              }))
+            ],
+            tools: toolRegistry
+          });
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id !== session.id ? s : {
+                ...s, updatedAt: now(),
+                messages: [...s.messages, { id: uid(), role: "assistant", content: followup.content, createdAt: now(), status: "complete" }]
+              }
+            )
+          );
+        }
+
+        return;
+      }
+
+      // ── Ollama path (unchanged) ───────────────────────────────────────────
       const firstResponse = await chatWithOllamaStream(
         {
           baseUrl: settings.ollamaBaseUrl,
           model: settings.model,
-          messages: [...ollamaMessages, { role: "user", content: trimmed }],
+          messages: allMessages,
           tools: buildOllamaTools(toolRegistry)
         },
         {
           onTextDelta: (chunk) => {
             setSessions((prev) =>
               prev.map((s) =>
-                s.id !== session.id
-                  ? s
-                  : {
-                      ...s,
-                      updatedAt: now(),
-                      messages: s.messages.map((m) =>
-                        m.id === assistantDraftId
-                          ? { ...m, content: m.content + chunk, status: "streaming" as const }
-                          : m
-                      )
-                    }
+                s.id !== session.id ? s : {
+                  ...s, updatedAt: now(),
+                  messages: s.messages.map((m) =>
+                    m.id === assistantDraftId
+                      ? { ...m, content: m.content + chunk, status: "streaming" as const }
+                      : m
+                  )
+                }
               )
             );
           },
@@ -224,10 +345,7 @@ export function useChat() {
             for (const call of toolCalls) {
               streamedToolCalls.push({
                 id: (call as ToolCall).id ?? uid(),
-                function: {
-                  name: call.function.name,
-                  arguments: call.function.arguments
-                }
+                function: { name: call.function.name, arguments: call.function.arguments }
               });
             }
           }
@@ -245,20 +363,13 @@ export function useChat() {
 
       setSessions((prev) =>
         prev.map((s) =>
-          s.id !== session.id
-            ? s
-            : {
-                ...s,
-                updatedAt: now(),
-                messages: [
-                  ...s.messages.filter((m) => m.id !== assistantDraftId),
-                  finalAssistantMessage
-                ]
-              }
+          s.id !== session.id ? s : {
+            ...s, updatedAt: now(),
+            messages: [...s.messages.filter((m) => m.id !== assistantDraftId), finalAssistantMessage]
+          }
         )
       );
 
-      // After first assistant completion, refine auto-title
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== session.id || s.titleSource !== "auto") return s;
@@ -273,65 +384,39 @@ export function useChat() {
 
       if (streamedToolCalls.length > 0) {
         let toolMessages: ChatMessage[] = [];
-
         for (const call of streamedToolCalls) {
           const tool = getToolByName(call.function.name);
           if (!tool) continue;
           const result = await tool.run(call.function.arguments);
-          const toolMessage: ChatMessage = {
-            id: uid(),
-            role: "tool",
-            content: JSON.stringify(result),
-            createdAt: now(),
-            toolName: tool.name,
-            toolData: result,
-            toolCallId: call.id
-          };
-          toolMessages = [...toolMessages, toolMessage];
+          toolMessages = [...toolMessages, {
+            id: uid(), role: "tool", content: JSON.stringify(result),
+            createdAt: now(), toolName: tool.name, toolData: result, toolCallId: call.id
+          }];
         }
-
         setSessions((prev) =>
           prev.map((s) =>
-            s.id !== session.id
-              ? s
-              : { ...s, updatedAt: now(), messages: [...s.messages, ...toolMessages] }
+            s.id !== session.id ? s : { ...s, updatedAt: now(), messages: [...s.messages, ...toolMessages] }
           )
         );
-
         const followup = await chatWithOllamaOnce({
           baseUrl: settings.ollamaBaseUrl,
           model: settings.model,
           messages: [
-            ...ollamaMessages,
-            { role: "user", content: trimmed },
-            {
-              role: "assistant",
-              content: finalAssistantMessage.content,
-              tool_calls: streamedToolCalls
-            },
+            ...allMessages,
+            { role: "assistant", content: finalAssistantMessage.content, tool_calls: streamedToolCalls },
             ...toolMessages.map((m) => ({
-              role: "tool" as const,
-              content: m.content,
-              tool_name: m.toolName,
-              tool_call_id: m.toolCallId
+              role: "tool" as const, content: m.content,
+              tool_name: m.toolName, tool_call_id: m.toolCallId
             }))
           ],
           tools: buildOllamaTools(toolRegistry)
         });
-
-        const finalAnswer: ChatMessage = {
-          id: uid(),
-          role: "assistant",
-          content: followup.message?.content ?? "",
-          createdAt: now(),
-          status: "complete"
-        };
-
         setSessions((prev) =>
           prev.map((s) =>
-            s.id !== session.id
-              ? s
-              : { ...s, updatedAt: now(), messages: [...s.messages, finalAnswer] }
+            s.id !== session.id ? s : {
+              ...s, updatedAt: now(),
+              messages: [...s.messages, { id: uid(), role: "assistant", content: followup.message?.content ?? "", createdAt: now(), status: "complete" }]
+            }
           )
         );
       }
