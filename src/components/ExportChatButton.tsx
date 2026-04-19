@@ -1,28 +1,29 @@
 /**
  * ExportChatButton.tsx
  *
- * Surfaces chatExport + githubExport as UI actions.
- * Two modes:
- *   1. Download ZIP  — exportChat() → downloadExportAsZip()
- *   2. Push to GitHub — exportChat() → pushBundleToGitHub()
+ * Orchestrates chat export. On success:
+ *   1. exportChat()            — builds .osmd + updates registry + persists DB ref
+ *   2. downloadExportAsZip()   — delivers ZIP to browser (zip mode)
+ *      pushBundleToGitHub()    — pushes to GitHub (github mode)
+ *   3. onExported()            — notifies parent to update React state immediately
  *
- * The GitHub mode requires a PAT saved via GitHubSettings.
- * If no PAT is present, the component nudges the user to Settings.
+ * The onExported callback is optional so existing callers without it still work.
  */
 import { useState } from "react";
 import { exportChat, downloadExportAsZip } from "../lib/chatExport";
 import { pushBundleToGitHub, getGithubPat } from "../lib/githubExport";
-import type { ChatSession, ChatSettings } from "../lib/types";
+import type { ChatSession, ChatSettings, ChatExportRef } from "../lib/types";
 
 interface Props {
   session: ChatSession | null;
   settings: ChatSettings;
+  onExported?: (sessionId: string, exportRef: ChatExportRef) => void;
 }
 
 type Mode = "zip" | "github";
 type Status = "idle" | "busy" | "done" | "error";
 
-export function ExportChatButton({ session, settings }: Props) {
+export function ExportChatButton({ session, settings, onExported }: Props) {
   const [mode, setMode] = useState<Mode>("zip");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
@@ -62,6 +63,15 @@ export function ExportChatButton({ session, settings }: Props) {
         setMessage("Pushed to GitHub ✓");
         setRepoUrl(result.repoUrl);
       }
+
+      // Notify parent so sidebar badge appears immediately without reload
+      onExported?.(session.id, {
+        artifactId: bundle.artifact.id,
+        slug: bundle.slug,
+        exportPath: bundle.osmdPath,
+        exportedAt: bundle.artifact.createdAt,
+        format: "osmd@1",
+      });
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Export failed");
