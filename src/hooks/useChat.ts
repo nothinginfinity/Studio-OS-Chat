@@ -65,6 +65,9 @@ function buildFileIndexAppendix(filePaths: string[]): string {
     `\n---\n` +
     `When the user asks about any of these files or their content, ` +
     `call the file_search tool FIRST before answering. ` +
+    `After receiving tool results, synthesize them into a clear, helpful answer in your own words. ` +
+    `Do NOT repeat file paths, scores, chunk IDs, or raw snippets in your reply — ` +
+    `always translate retrieved content into useful human language. ` +
     `Never say no files are available when this list is non-empty.`
   );
 }
@@ -207,16 +210,13 @@ export function useChat() {
   }
 
   const deleteSession = useCallback(async (sessionId: string) => {
-    // Remove from IndexedDB
     await dbDeleteSession(sessionId);
-    // Remove from React state and shift active session if needed
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== sessionId);
       return next;
     });
     setActiveSessionIdState((prev) => {
       if (prev !== sessionId) return prev;
-      // Pick the next available session
       const remaining = sessions.filter((s) => s.id !== sessionId);
       return remaining[0]?.id ?? null;
     });
