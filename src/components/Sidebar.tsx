@@ -12,6 +12,7 @@ import { SpacesPanel } from "./SpacesPanel";
 import { PromptHistorySheet } from "./PromptHistorySheet";
 import { PromptLibrary } from "./PromptLibrary";
 import { ChatActionSheet } from "./ChatActionSheet";
+import { SystemPromptLibrarySheet } from "./SystemPromptLibrarySheet";
 import { useLongPress } from "../hooks/useLongPress";
 
 type Tab = "chats" | "library" | "files" | "spaces" | "settings";
@@ -35,7 +36,7 @@ interface SidebarProps {
   onTabChange?: (tab: Tab) => void;
 }
 
-// ── Inner component: one long-pressable session row ───────────────────────────
+// ── Inner component: one long-pressable session row ───────────────────────────────────────────
 function SessionRow({
   session,
   isActive,
@@ -93,7 +94,37 @@ function SessionRow({
   );
 }
 
-// ── Main sidebar ──────────────────────────────────────────────────────────────
+// ── Long-pressable system prompt textarea wrapper ─────────────────────────────────
+function SystemPromptField({
+  value,
+  onChange,
+  onLongPress,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onLongPress: () => void;
+}) {
+  const { bind, isPressed } = useLongPress({ onLongPress });
+
+  return (
+    <label className="field">
+      <span className="sys-prompt-field-label">
+        System Prompt
+        <span className="sys-prompt-field-hint">hold to browse library</span>
+      </span>
+      <textarea
+        rows={4}
+        value={value}
+        className={isPressed ? "lp-item--pressed" : ""}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="System prompt — long-press to open library"
+        {...bind}
+      />
+    </label>
+  );
+}
+
+// ── Main sidebar ────────────────────────────────────────────────────────────────
 export function Sidebar({
   settings,
   setSettings,
@@ -120,19 +151,15 @@ export function Sidebar({
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeSheetSession, setActiveSheetSession] = useState<ChatSession | null>(null);
+  const [sysPromptLibraryOpen, setSysPromptLibraryOpen] = useState(false);
 
   const exportTriggerRef = useRef<{ export: (sessionId: string) => void } | null>(null);
 
   const activeSession =
     sessions.find((s) => s.id === activeSessionId) ?? null;
 
-  // ── Guard: if the active session already has no messages, reuse it instead
-  //    of creating yet another empty chat.
   function handleNewSession() {
-    if (activeSession && activeSession.messages.length === 0) {
-      // Already on an empty session — just make sure it's focused, no new session
-      return;
-    }
+    if (activeSession && activeSession.messages.length === 0) return;
     onNewSession();
   }
 
@@ -178,12 +205,16 @@ export function Sidebar({
     }
   }
 
-  // ── Switch to a session; auto-delete the previous one if it was empty ────────
   function handleSelectSession(id: string) {
     if (activeSession && activeSession.id !== id && activeSession.messages.length === 0) {
       if (onDeleteSession) onDeleteSession(activeSession.id);
     }
     onSelectSession(id);
+  }
+
+  /** Called when user picks a prompt from the library — applies it immediately */
+  function handleSelectSystemPrompt(content: string) {
+    setSettings((prev) => ({ ...prev, systemPrompt: content }));
   }
 
   return (
@@ -231,16 +262,12 @@ export function Sidebar({
             ))}
           </div>
 
-          <label className="field">
-            <span>System Prompt</span>
-            <textarea
-              rows={4}
-              value={settings.systemPrompt}
-              onChange={(e) =>
-                setSettings((prev) => ({ ...prev, systemPrompt: e.target.value }))
-              }
-            />
-          </label>
+          {/* Long-pressable system prompt field — opens the library sheet */}
+          <SystemPromptField
+            value={settings.systemPrompt}
+            onChange={(v) => setSettings((prev) => ({ ...prev, systemPrompt: v }))}
+            onLongPress={() => setSysPromptLibraryOpen(true)}
+          />
 
           <button onClick={onClearChat}>Clear Chat</button>
 
@@ -329,6 +356,14 @@ export function Sidebar({
         onExport={handleSheetExport}
         onCopyExportPath={handleSheetCopyExportPath}
         onDelete={handleSheetDelete}
+      />
+
+      {/* System Prompt Library Sheet — opened via long-press on the textarea */}
+      <SystemPromptLibrarySheet
+        open={sysPromptLibraryOpen}
+        onClose={() => setSysPromptLibraryOpen(false)}
+        onSelectPrompt={handleSelectSystemPrompt}
+        settings={settings}
       />
     </aside>
   );
