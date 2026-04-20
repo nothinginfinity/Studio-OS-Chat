@@ -6,6 +6,7 @@
  *   github_push  — create or update a file in a GitHub repo
  *
  * Both tools resolve the stored PAT automatically via getGithubPat().
+ * Uses Bearer auth to support both classic and fine-grained PATs.
  */
 
 import type { ToolDefinition } from "../lib/types";
@@ -24,7 +25,7 @@ async function getPat(): Promise<string> {
 function authHeaders(pat: string): Record<string, string> {
   return {
     "Content-Type": "application/json",
-    Authorization: `token ${pat}`,
+    Authorization: `Bearer ${pat}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   };
