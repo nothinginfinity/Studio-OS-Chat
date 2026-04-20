@@ -111,7 +111,6 @@ export function Sidebar({
   activeTab,
   onTabChange,
 }: SidebarProps) {
-  // Internal tab state used only when parent does not control it
   const [internalTab, setInternalTab] = useState<Tab>("chats");
   const tab: Tab = activeTab ?? internalTab;
   function setTab(next: Tab) {
@@ -302,9 +301,10 @@ export function Sidebar({
         onCreateSessionWithDraft={handleNewChatFromPrompt}
       />
 
-      {/* Chat Action Sheet */}
+      {/* Chat Action Sheet — settings passed so Promote to Spec Repo has model/provider context */}
       <ChatActionSheet
         session={activeSheetSession}
+        settings={settings}
         onClose={() => setActiveSheetSession(null)}
         onOpen={handleSheetOpen}
         onRename={handleSheetRename}
