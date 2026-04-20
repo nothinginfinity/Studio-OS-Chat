@@ -126,6 +126,16 @@ export function Sidebar({
   const activeSession =
     sessions.find((s) => s.id === activeSessionId) ?? null;
 
+  // ── Guard: if the active session already has no messages, reuse it instead
+  //    of creating yet another empty chat.
+  function handleNewSession() {
+    if (activeSession && activeSession.messages.length === 0) {
+      // Already on an empty session — just make sure it's focused, no new session
+      return;
+    }
+    onNewSession();
+  }
+
   function handleSettingsChange(next: ChatSettings) {
     setSettings(next);
   }
@@ -168,6 +178,14 @@ export function Sidebar({
     }
   }
 
+  // ── Switch to a session; auto-delete the previous one if it was empty ────────
+  function handleSelectSession(id: string) {
+    if (activeSession && activeSession.id !== id && activeSession.messages.length === 0) {
+      if (onDeleteSession) onDeleteSession(activeSession.id);
+    }
+    onSelectSession(id);
+  }
+
   return (
     <aside className="sidebar">
       <h1>Studio OS Chat</h1>
@@ -198,8 +216,8 @@ export function Sidebar({
 
       {/* Chats tab */}
       {tab === "chats" && (
-        <>
-          <button onClick={onNewSession}>New Chat</button>
+        <div className="sidebar-chats-content">
+          <button onClick={handleNewSession}>New Chat</button>
 
           <div className="session-list">
             {sessions.map((session) => (
@@ -207,7 +225,7 @@ export function Sidebar({
                 key={session.id}
                 session={session}
                 isActive={session.id === activeSessionId}
-                onTap={(s) => onSelectSession(s.id)}
+                onTap={(s) => handleSelectSession(s.id)}
                 onLongPress={(s) => setActiveSheetSession(s)}
               />
             ))}
@@ -248,7 +266,7 @@ export function Sidebar({
               </div>
             ) : null}
           </div>
-        </>
+        </div>
       )}
 
       {/* Library tab */}
@@ -301,7 +319,7 @@ export function Sidebar({
         onCreateSessionWithDraft={handleNewChatFromPrompt}
       />
 
-      {/* Chat Action Sheet — settings passed so Promote to Spec Repo has model/provider context */}
+      {/* Chat Action Sheet */}
       <ChatActionSheet
         session={activeSheetSession}
         settings={settings}
