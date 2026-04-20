@@ -1,0 +1,292 @@
+/* ================================================================
+   FILES PANEL — native sheet-system styles
+   Matches the card/sheet visual language from sheet.css.
+   All .files-* and .file-* classes live here.
+================================================================ */
+
+/* ── Panel shell ──────────────────────────────────────────────── */
+
+.files-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.files-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 12px;
+}
+
+.files-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f4;
+  margin: 0;
+}
+
+/* ── Add-source action buttons ───────────────────────────────── */
+
+.files-add-row {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 14px;
+}
+
+.files-add-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #2d3a50;
+  background: #0d1117;
+  color: #c9d3e8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.files-add-btn:hover:not(:disabled) {
+  background: #1c2431;
+  border-color: #3d5070;
+  color: #f5f7fa;
+}
+.files-add-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.files-add-btn-icon {
+  font-size: 16px;
+}
+
+/* ── Error banner ─────────────────────────────────────────────── */
+
+.files-error {
+  font-size: 13px;
+  color: #f87171;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+/* ── Indexing progress ────────────────────────────────────────── */
+
+.files-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.files-progress-bar {
+  height: 4px;
+  background: #1e2a3a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.files-progress-fill {
+  height: 100%;
+  background: #2a6aad;
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+.files-progress-label {
+  font-size: 11px;
+  color: #6b7a99;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Indexed sources section ──────────────────────────────────── */
+
+.files-sources-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 8px;
+}
+
+.files-sources-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7a99;
+  margin: 0;
+}
+
+.files-sources-count {
+  font-size: 11px;
+  color: #444f66;
+}
+
+.files-sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+/* ── File root card (reuses prompt-history-item base) ─────────── */
+/* Long-press behaviour via lp-item / lp-item--pressed in sheet.css */
+
+.file-root-card {
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+  outline: none;
+}
+.file-root-card:hover  { background: #111827; border-color: #2a4a6a; }
+.file-root-card:focus-visible { border-color: #2a6aad; box-shadow: 0 0 0 2px rgba(42,106,173,0.35); }
+
+.file-root-card-name {
+  font-size: 13px;
+  color: #c9d3e8;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.file-root-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.file-root-card-kind {
+  font-size: 11px;
+  color: #7ec8ff;
+  white-space: nowrap;
+}
+
+.file-root-card-time {
+  font-size: 11px;
+  color: #444f66;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-root-card-hint {
+  font-size: 11px;
+  color: #3d5070;
+  font-style: italic;
+}
+
+/* ── Search bar ───────────────────────────────────────────────── */
+
+.files-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.files-search-input {
+  flex: 1;
+  font-size: 14px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid #2d3a50;
+  background: #0d1117;
+  color: #f5f7fa;
+  width: auto;
+}
+.files-search-input:focus { outline: none; border-color: #2a6aad; }
+
+.files-search-btn {
+  flex-shrink: 0;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #2d3a50;
+  background: #0d1117;
+  color: #6b7a99;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.files-search-btn:hover:not(:disabled) { background: #1c2431; color: #f5f7fa; }
+.files-search-btn:disabled { opacity: 0.5; }
+
+/* ── Search results ───────────────────────────────────────────── */
+
+.files-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.files-snippet-card {
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.files-snippet-path {
+  font-size: 12px;
+  color: #7ec8ff;
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-snippet-score {
+  font-size: 10px;
+  color: #444f66;
+}
+
+.files-snippet-text {
+  font-size: 12px;
+  color: #c9d3e8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: monospace;
+  max-height: 160px;
+  overflow: auto;
+  line-height: 1.5;
+}
+
+/* ── Empty state ──────────────────────────────────────────────── */
+
+.files-empty {
+  font-size: 13px;
+  color: #444f66;
+  text-align: center;
+  padding: 32px 16px;
+  line-height: 1.7;
+}
+
+.files-empty-icon {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 8px;
+}
