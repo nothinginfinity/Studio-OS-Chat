@@ -1,17 +1,22 @@
 /**
  * ExportChatButton.tsx
  *
- * Orchestrates chat export. On success:
- *   1. exportChat()            — builds .osmd + updates registry + persists DB ref
- *   2. downloadExportAsZip()   — delivers ZIP to browser (zip mode)
- *      pushBundleToGitHub()    — pushes to GitHub (github mode)
- *   3. onExported()            — notifies parent to update React state immediately
+ * Orchestrates chat export AND spec repo promotion. On success:
+ *   1. exportChat()                       — builds .osmd + updates registry + persists DB ref
+ *   2. downloadExportAsZip()              — delivers ZIP to browser (zip mode)
+ *      pushBundleToGitHub()               — pushes .osmd bundle to GitHub (github mode)
+ *      promoteConversationToSpecRepo()    — creates a new spec repo scaffold (spec-repo mode)
+ *   3. onExported()                       — notifies parent to update React state immediately
  *
  * The onExported callback is optional so existing callers without it still work.
  */
 import { useState } from "react";
 import { exportChat, downloadExportAsZip } from "../lib/chatExport";
-import { pushBundleToGitHub, getGithubPat } from "../lib/githubExport";
+import {
+  pushBundleToGitHub,
+  promoteConversationToSpecRepo,
+  getGithubPat,
+} from "../lib/githubExport";
 import type { ChatSession, ChatSettings, ChatExportRef } from "../lib/types";
 
 interface Props {
@@ -20,7 +25,7 @@ interface Props {
   onExported?: (sessionId: string, exportRef: ChatExportRef) => void;
 }
 
-type Mode = "zip" | "github";
+type Mode = "zip" | "github" | "spec-repo";
 type Status = "idle" | "busy" | "done" | "error";
 
 export function ExportChatButton({ session, settings, onExported }: Props) {
@@ -44,6 +49,39 @@ export function ExportChatButton({ session, settings, onExported }: Props) {
     setRepoUrl("");
 
     try {
+      if (mode === "spec-repo") {
+        // Spec repo promotion — no .osmd bundle involved
+        const pat = await getGithubPat();
+        if (!pat) {
+          setStatus("error");
+          setMessage("No GitHub PAT — save one in Settings → GitHub Export");
+          reset();
+          return;
+        }
+
+        const result = await promoteConversationToSpecRepo(
+          session,
+          pat,
+          settings,
+          {
+            title: session.title,
+            source: "Studio-OS-Chat",
+            sourceChatSurface: "studio-os-chat",
+            exportTime: new Date().toISOString(),
+            brainstormModel: settings.model ?? null,
+            brainstormProvider: settings.provider ?? null,
+          },
+          false
+        );
+
+        setStatus("done");
+        setMessage("Spec repo created ✓");
+        setRepoUrl(result.repoUrl);
+        reset();
+        return;
+      }
+
+      // ZIP / GitHub .osmd export
       const bundle = await exportChat(session, settings);
 
       if (mode === "zip") {
@@ -82,6 +120,12 @@ export function ExportChatButton({ session, settings, onExported }: Props) {
 
   const disabled = !session || status === "busy";
 
+  const buttonLabel: Record<Mode, string> = {
+    zip: "Export Chat",
+    github: "Export Chat",
+    "spec-repo": "Promote to Spec Repo",
+  };
+
   return (
     <div className="export-chat-widget">
       {/* Mode toggle */}
@@ -104,16 +148,42 @@ export function ExportChatButton({ session, settings, onExported }: Props) {
         >
           🐙 GitHub
         </button>
+        <button
+          className={`export-mode-btn${
+            mode === "spec-repo" ? " export-mode-btn--active" : ""
+          }`}
+          onClick={() => setMode("spec-repo")}
+          aria-pressed={mode === "spec-repo"}
+          title="Promote this conversation into a new Studio OS spec repo on GitHub"
+        >
+          🚀 Spec Repo
+        </button>
       </div>
 
-      {/* Export button */}
+      {/* Mode description */}
+      {mode === "spec-repo" && (
+        <p className="export-mode-description">
+          Creates a new GitHub repo with SPEC.md, SUMMARY.md, CONVERSATION.md,
+          PROMPT_CHAIN.json, PROVENANCE.json, and full Studio OS scaffold.
+        </p>
+      )}
+
+      {/* Action button */}
       <button
         className="export-chat-btn"
         onClick={handleExport}
         disabled={disabled}
-        aria-label={`Export current chat as ${mode === "zip" ? "ZIP" : "GitHub repo"}`}
+        aria-label={
+          mode === "spec-repo"
+            ? "Promote current chat to a Studio OS spec repo on GitHub"
+            : `Export current chat as ${mode === "zip" ? "ZIP" : "GitHub repo"}`
+        }
       >
-        {status === "busy" ? "Exporting…" : "Export Chat"}
+        {status === "busy"
+          ? mode === "spec-repo"
+            ? "Creating spec repo…"
+            : "Exporting…"
+          : buttonLabel[mode]}
       </button>
 
       {/* Feedback */}
