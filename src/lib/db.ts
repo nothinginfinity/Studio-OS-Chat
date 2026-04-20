@@ -1,19 +1,5 @@
 /**
  * db.ts — IndexedDB persistence backbone for studio-os-chat v3
- *
- * Stores:
- *   sessions         — SessionRecord
- *   messages         — MessageRecord
- *   settings         — key/value
- *   fileRoots        — FileRootRecord
- *   files            — FileRecord
- *   chunks           — ChunkRecord
- *   terms            — TermRecord
- *   promptAssets     — PromptAssetRecord   (v3)
- *   promptRelations  — PromptRelationRecord (v3)
- *
- * v2: adds exportedAt + exportPath indexes to sessions
- * v3: adds promptAssets + promptRelations stores
  */
 
 import type {
@@ -119,8 +105,6 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-// ── Generic helpers ───────────────────────────────────────────────────────────
-
 function tx(db: IDBDatabase, stores: string | string[], mode: IDBTransactionMode = "readonly"): IDBTransaction {
   return db.transaction(stores, mode);
 }
@@ -173,8 +157,6 @@ function getByIndex<T>(store: IDBObjectStore, indexName: string, query: IDBValid
   });
 }
 
-// ── Sessions ──────────────────────────────────────────────────────────────────
-
 export async function putSession(session: SessionRecord): Promise<void> {
   const db = await openDb();
   const t = tx(db, "sessions", "readwrite");
@@ -224,23 +206,15 @@ export async function updateSessionExportRef(
   });
 }
 
-/**
- * deleteSession — removes the session record and all its messages from IndexedDB.
- * Cascade deletes messages by sessionId index.
- */
 export async function deleteSession(sessionId: string): Promise<void> {
   const db = await openDb();
-  // Delete all messages for this session first
   const msgTx = tx(db, "messages", "readwrite");
   const msgStore = msgTx.objectStore("messages");
   const messages = await getAllByIndex<MessageRecord>(msgStore, "sessionId", IDBKeyRange.only(sessionId));
   await Promise.all(messages.map((m) => del(msgStore, m.id)));
-  // Delete the session record
   const sesTx = tx(db, "sessions", "readwrite");
   await del(sesTx.objectStore("sessions"), sessionId);
 }
-
-// ── Messages ──────────────────────────────────────────────────────────────────
 
 export async function putMessages(messages: MessageRecord[]): Promise<void> {
   if (!messages.length) return;
@@ -266,8 +240,6 @@ export async function attachPromptAssetToMessage(messageId: string, promptAssetI
   await put(store, { ...existing, promptAssetId });
 }
 
-// ── Settings ──────────────────────────────────────────────────────────────────
-
 export async function getSetting<T>(key: string): Promise<T | null> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -291,8 +263,6 @@ export async function putExportIndex(value: unknown): Promise<void> {
   await putSetting(EXPORT_INDEX_SETTINGS_KEY, value);
 }
 
-// ── File roots ────────────────────────────────────────────────────────────────
-
 export async function putFileRoot(root: FileRootRecord): Promise<void> {
   const db = await openDb();
   const t = tx(db, "fileRoots", "readwrite");
@@ -305,7 +275,20 @@ export async function listFileRoots(): Promise<FileRootRecord[]> {
   return getAll<FileRootRecord>(t.objectStore("fileRoots"));
 }
 
-// ── Files ─────────────────────────────────────────────────────────────────────
+export async function removeFileRoot(rootId: string): Promise<void> {
+  const db = await openDb();
+  const fileTx = tx(db, ["files", "chunks"], "readwrite");
+  const fileStore = fileTx.objectStore("files");
+  const chunkStore = fileTx.objectStore("chunks");
+  const files = await getAllByIndex<FileRecord>(fileStore, "rootId", IDBKeyRange.only(rootId));
+  for (const file of files) {
+    const chunks = await getAllByIndex<ChunkRecord>(chunkStore, "fileId", IDBKeyRange.only(file.id));
+    await Promise.all(chunks.map((chunk) => del(chunkStore, chunk.id)));
+    await del(fileStore, file.id);
+  }
+  const rootTx = tx(db, "fileRoots", "readwrite");
+  await del(rootTx.objectStore("fileRoots"), rootId);
+}
 
 export async function putFile(file: FileRecord): Promise<void> {
   const db = await openDb();
@@ -325,8 +308,6 @@ export async function listAllFiles(): Promise<FileRecord[]> {
   return getAll<FileRecord>(t.objectStore("files"));
 }
 
-// ── Chunks ────────────────────────────────────────────────────────────────────
-
 export async function putChunks(chunks: ChunkRecord[]): Promise<void> {
   if (!chunks.length) return;
   const db = await openDb();
@@ -342,8 +323,6 @@ export async function listChunksByFile(fileId: string): Promise<ChunkRecord[]> {
   return rows.sort((a, b) => a.ordinal - b.ordinal);
 }
 
-// ── Terms ─────────────────────────────────────────────────────────────────────
-
 export async function putTerms(terms: TermRecord[]): Promise<void> {
   if (!terms.length) return;
   const db = await openDb();
@@ -357,8 +336,6 @@ export async function getTermChunks(term: string): Promise<TermRecord[]> {
   const t = tx(db, "terms");
   return getAllByIndex<TermRecord>(t.objectStore("terms"), "term", IDBKeyRange.only(term));
 }
-
-// ── Prompt assets ─────────────────────────────────────────────────────────────
 
 export async function putPromptAsset(asset: PromptAssetRecord): Promise<void> {
   const db = await openDb();
@@ -465,8 +442,6 @@ export async function promotePromptToAsset(input: PromotePromptInput): Promise<P
   return asset;
 }
 
-// ── Prompt relations ──────────────────────────────────────────────────────────
-
 export async function putPromptRelation(relation: PromptRelationRecord): Promise<void> {
   const db = await openDb();
   const t = tx(db, "promptRelations", "readwrite");
@@ -483,8 +458,6 @@ export async function listPromptRelationsForAsset(assetId: string): Promise<Prom
   ]);
   return [...fromRows, ...toRows].sort((a, b) => a.createdAt - b.createdAt);
 }
-
-// ── Prompt history ────────────────────────────────────────────────────────────
 
 export async function listAllUserPrompts(): Promise<PromptHistoryItem[]> {
   const [sessions, assets, db] = await Promise.all([listSessions(), listPromptAssets(), openDb()]);
@@ -522,8 +495,6 @@ export async function searchUserPrompts(query: string): Promise<PromptHistoryIte
     return tokens.every((tok) => hay.includes(tok));
   });
 }
-
-// ── Full-text search ──────────────────────────────────────────────────────────
 
 export async function searchChunksByTerms(queryTerms: string[], limit: number): Promise<Array<{ chunk: ChunkRecord; score: number }>> {
   if (!queryTerms.length) return [];

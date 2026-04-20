@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { indexDirectory, indexFileList } from "../lib/fileIndex";
-import { putFileRoot, listFileRoots } from "../lib/db";
+import { putFileRoot, listFileRoots, removeFileRoot } from "../lib/db";
 import { uid } from "../lib/utils";
 import type { FileRootRecord } from "../lib/types";
 
@@ -16,7 +16,6 @@ export function useFiles() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load persisted roots from IndexedDB on mount — fixes empty roots after reload
   useEffect(() => {
     listFileRoots().then(setRoots).catch(() => {});
   }, []);
@@ -119,5 +118,25 @@ export function useFiles() {
     input.click();
   }, []);
 
-  return { roots, progress, isIndexing, error, addFolder, addFiles };
+  const removeRoot = useCallback(async (rootId: string) => {
+    await removeFileRoot(rootId);
+    setRoots((prev) => prev.filter((r) => r.id !== rootId));
+  }, []);
+
+  const reindexRoot = useCallback(async (_rootId: string) => {
+    // Placeholder until source handles are persisted.
+    // For now this preserves the UX contract and can later reopen the picker.
+    console.info("[Files] reindex requested");
+  }, []);
+
+  return {
+    roots,
+    progress,
+    isIndexing,
+    error,
+    addFolder,
+    addFiles,
+    removeRoot,
+    reindexRoot,
+  };
 }
