@@ -91,7 +91,6 @@ export function ChatActionSheet({
     <ActionSheetBase onBackdropClick={onClose} ariaLabel="Chat actions" zIndex={1100}>
       <div className="action-sheet-handle" />
 
-      {/* Session detail header */}
       <div className="action-sheet-detail">
         <div className="action-sheet-detail-meta">
           {exported && (
@@ -148,7 +147,6 @@ export function ChatActionSheet({
           </span>
         </button>
 
-        {/* Promote to Spec Repo */}
         <button
           className="action-sheet-btn"
           onClick={handlePromote}
@@ -167,7 +165,6 @@ export function ChatActionSheet({
                 ? promoteMsg
                 : "Push conversation to a new GitHub spec repo"}
             </span>
-          </strong>
           </span>
         </button>
 
