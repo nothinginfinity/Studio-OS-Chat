@@ -31,12 +31,11 @@ interface SidebarProps {
   onReusePrompt: (text: string) => void;
   onCreateSessionWithDraft: (text: string) => Promise<unknown>;
   onDeleteSession?: (sessionId: string) => void;
-  /** Controlled tab — when provided, parent owns tab state */
   activeTab?: Tab;
   onTabChange?: (tab: Tab) => void;
 }
 
-// ── Inner component: one long-pressable session row ───────────────────────────────────────────
+// ── Session row ────────────────────────────────────────────────────────────────────
 function SessionRow({
   session,
   isActive,
@@ -82,10 +81,7 @@ function SessionRow({
           onSave={(_title) => { /* handled via sheet rename */ }}
         />
         {session.exportRef?.exportPath ? (
-          <span
-            className="session-export-badge"
-            title={session.exportRef.exportPath}
-          >
+          <span className="session-export-badge" title={session.exportRef.exportPath}>
             Exported
           </span>
         ) : null}
@@ -94,7 +90,14 @@ function SessionRow({
   );
 }
 
-// ── Long-pressable system prompt textarea wrapper ─────────────────────────────────
+// ── System prompt field ──────────────────────────────────────────────────────────
+//
+// KEY FIX: the long-press gesture bind goes on the outer <div>, NOT on the
+// <textarea>. On iOS/mobile Safari, spreading pointer-event handlers directly
+// onto a textarea causes the browser to swallow the pointerdown (it grabs
+// focus for text insertion) and the long-press timer never fires.
+// The wrapper div receives all gesture events; the textarea stays fully editable.
+
 function SystemPromptField({
   value,
   onChange,
@@ -104,23 +107,49 @@ function SystemPromptField({
   onChange: (v: string) => void;
   onLongPress: () => void;
 }) {
-  const { bind, isPressed } = useLongPress({ onLongPress });
+  const { bind, isPressed } = useLongPress({ onLongPress, delay: 500 });
 
   return (
-    <label className="field">
-      <span className="sys-prompt-field-label">
-        System Prompt
-        <span className="sys-prompt-field-hint">hold to browse library</span>
-      </span>
+    <div
+      className={["sys-prompt-field-wrap", isPressed ? "lp-item--pressed" : ""].filter(Boolean).join(" ")}
+      {...bind}
+      // Prevent the wrapper's contextmenu suppression from killing textarea
+      // right-click — only suppress on non-textarea targets.
+      onContextMenu={(e) => {
+        if ((e.target as HTMLElement).tagName === "TEXTAREA") return;
+        e.preventDefault();
+      }}
+    >
+      <label className="field" style={{ pointerEvents: "none", userSelect: "none" }}>
+        <span className="sys-prompt-field-label">
+          System Prompt
+          <span className="sys-prompt-field-hint"> — hold to browse library</span>
+        </span>
+      </label>
+      {/* Textarea is outside the label so pointer-events work normally */}
       <textarea
         rows={4}
         value={value}
-        className={isPressed ? "lp-item--pressed" : ""}
+        style={{ pointerEvents: "auto" }}
         onChange={(e) => onChange(e.target.value)}
-        aria-label="System prompt — long-press to open library"
-        {...bind}
+        aria-label="System prompt — long-press background to open library"
+        // Stop pointer events on the textarea from bubbling up and
+        // re-triggering the wrapper's long-press timer.
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerCancel={(e) => e.stopPropagation()}
       />
-    </label>
+      <button
+        className="sys-prompt-library-btn"
+        type="button"
+        onClick={onLongPress}
+        aria-label="Open system prompt library"
+        title="Browse system prompt library"
+      >
+        📚 Library
+      </button>
+    </div>
   );
 }
 
@@ -155,8 +184,7 @@ export function Sidebar({
 
   const exportTriggerRef = useRef<{ export: (sessionId: string) => void } | null>(null);
 
-  const activeSession =
-    sessions.find((s) => s.id === activeSessionId) ?? null;
+  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
 
   function handleNewSession() {
     if (activeSession && activeSession.messages.length === 0) return;
@@ -177,10 +205,6 @@ export function Sidebar({
     setHistoryOpen(false);
   }
 
-  function handleSheetOpen(sessionId: string) {
-    onSelectSession(sessionId);
-  }
-
   function handleSheetRename(sessionId: string) {
     const session = sessions.find((s) => s.id === sessionId);
     if (!session) return;
@@ -188,21 +212,8 @@ export function Sidebar({
     if (next && next.trim()) onRenameSession(sessionId, next.trim());
   }
 
-  function handleSheetExport(sessionId: string) {
-    onSelectSession(sessionId);
-    setTab("chats");
-  }
-
-  function handleSheetCopyExportPath(path: string) {
-    navigator.clipboard.writeText(path).catch(() => {});
-  }
-
   function handleSheetDelete(sessionId: string) {
-    if (onDeleteSession) {
-      onDeleteSession(sessionId);
-    } else {
-      console.info("[ChatActionSheet] delete stub — sessionId:", sessionId);
-    }
+    if (onDeleteSession) onDeleteSession(sessionId);
   }
 
   function handleSelectSession(id: string) {
@@ -212,7 +223,6 @@ export function Sidebar({
     onSelectSession(id);
   }
 
-  /** Called when user picks a prompt from the library — applies it immediately */
   function handleSelectSystemPrompt(content: string) {
     setSettings((prev) => ({ ...prev, systemPrompt: content }));
   }
@@ -223,29 +233,15 @@ export function Sidebar({
 
       <OllamaStatus settings={settings} />
 
-      {/* Tab bar */}
       <div className="sidebar-tabs">
-        <button className={tab === "chats" ? "tab active" : "tab"} onClick={() => setTab("chats")}>
-          Chats
-        </button>
-        <button className="tab" onClick={() => setHistoryOpen(true)} aria-label="Prompt history">
-          History
-        </button>
-        <button className={tab === "library" ? "tab active" : "tab"} onClick={() => setTab("library")} aria-label="Prompt library">
-          Library
-        </button>
-        <button className={tab === "files" ? "tab active" : "tab"} onClick={() => setTab("files")}>
-          Files
-        </button>
-        <button className={tab === "spaces" ? "tab active" : "tab"} onClick={() => setTab("spaces")}>
-          Spaces
-        </button>
-        <button className={tab === "settings" ? "tab active" : "tab"} onClick={() => setTab("settings")} aria-label="Settings">
-          ⚙️
-        </button>
+        <button className={tab === "chats" ? "tab active" : "tab"} onClick={() => setTab("chats")}>Chats</button>
+        <button className="tab" onClick={() => setHistoryOpen(true)} aria-label="Prompt history">History</button>
+        <button className={tab === "library" ? "tab active" : "tab"} onClick={() => setTab("library")}>Library</button>
+        <button className={tab === "files" ? "tab active" : "tab"} onClick={() => setTab("files")}>Files</button>
+        <button className={tab === "spaces" ? "tab active" : "tab"} onClick={() => setTab("spaces")}>Spaces</button>
+        <button className={tab === "settings" ? "tab active" : "tab"} onClick={() => setTab("settings")} aria-label="Settings">⚙️</button>
       </div>
 
-      {/* Chats tab */}
       {tab === "chats" && (
         <div className="sidebar-chats-content">
           <button onClick={handleNewSession}>New Chat</button>
@@ -262,7 +258,6 @@ export function Sidebar({
             ))}
           </div>
 
-          {/* Long-pressable system prompt field — opens the library sheet */}
           <SystemPromptField
             value={settings.systemPrompt}
             onChange={(v) => setSettings((prev) => ({ ...prev, systemPrompt: v }))}
@@ -282,26 +277,16 @@ export function Sidebar({
             {activeSession?.exportRef ? (
               <div className="export-status-detail">
                 <div><strong>Format:</strong> {activeSession.exportRef.format}</div>
-                <div>
-                  <strong>Path:</strong>{" "}
-                  <span className="export-path-text">{activeSession.exportRef.exportPath}</span>
-                </div>
-                <div>
-                  <strong>Exported:</strong>{" "}
-                  {new Date(activeSession.exportRef.exportedAt).toLocaleString()}
-                </div>
+                <div><strong>Path:</strong> <span className="export-path-text">{activeSession.exportRef.exportPath}</span></div>
+                <div><strong>Exported:</strong> {new Date(activeSession.exportRef.exportedAt).toLocaleString()}</div>
               </div>
             ) : null}
           </div>
         </div>
       )}
 
-      {/* Library tab */}
-      {tab === "library" && (
-        <PromptLibrary active={tab === "library"} onInsertPrompt={onInsertPrompt} />
-      )}
+      {tab === "library" && <PromptLibrary active={tab === "library"} onInsertPrompt={onInsertPrompt} />}
 
-      {/* Files tab */}
       {tab === "files" && (
         <>
           <FilesPanel />
@@ -310,14 +295,11 @@ export function Sidebar({
         </>
       )}
 
-      {/* Spaces tab */}
       {tab === "spaces" && <SpacesPanel />}
 
-      {/* Settings tab */}
       {tab === "settings" && (
         <>
           <ProviderSettings settings={settings} onSettingsChange={handleSettingsChange} />
-
           {settings.provider === "ollama" && (
             <label className="field">
               <span>Ollama URL</span>
@@ -327,17 +309,12 @@ export function Sidebar({
               />
             </label>
           )}
-
-          {settings.provider === "ollama" && (
-            <ModelSelector settings={settings} setSettings={setSettings} />
-          )}
-
+          {settings.provider === "ollama" && <ModelSelector settings={settings} setSettings={setSettings} />}
           <div className="sidebar-section-divider" />
           <GitHubSettings />
         </>
       )}
 
-      {/* Prompt History Sheet */}
       <PromptHistorySheet
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
@@ -346,19 +323,17 @@ export function Sidebar({
         onCreateSessionWithDraft={handleNewChatFromPrompt}
       />
 
-      {/* Chat Action Sheet */}
       <ChatActionSheet
         session={activeSheetSession}
         settings={settings}
         onClose={() => setActiveSheetSession(null)}
-        onOpen={handleSheetOpen}
+        onOpen={(id) => onSelectSession(id)}
         onRename={handleSheetRename}
-        onExport={handleSheetExport}
-        onCopyExportPath={handleSheetCopyExportPath}
+        onExport={(id) => { onSelectSession(id); setTab("chats"); }}
+        onCopyExportPath={(path) => navigator.clipboard.writeText(path).catch(() => {})}
         onDelete={handleSheetDelete}
       />
 
-      {/* System Prompt Library Sheet — opened via long-press on the textarea */}
       <SystemPromptLibrarySheet
         open={sysPromptLibraryOpen}
         onClose={() => setSysPromptLibraryOpen(false)}
