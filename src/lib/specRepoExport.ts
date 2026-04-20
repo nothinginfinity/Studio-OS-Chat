@@ -59,13 +59,11 @@ function summarizeMessages(messages: ChatMessage[], role: "user" | "assistant"):
 function deriveSummary(session: ChatSession): string {
   const user = summarizeMessages(session.messages, "user");
   const assistant = summarizeMessages(session.messages, "assistant");
-
   const parts = [
     user[0] ? `Conversation started from: ${user[0]}` : null,
     assistant[0] ? `Primary assistant response: ${assistant[0]}` : null,
     session.messages.length ? `Captured ${session.messages.length} messages.` : null,
   ].filter(Boolean);
-
   return parts.join(" ") || "Conversation-derived spec repo generated from Studio-OS-Chat.";
 }
 
@@ -77,7 +75,6 @@ function deriveKeyInsights(session: ChatSession): string[] {
     assistant[0] ? `Assistant direction: ${assistant[0]}` : null,
     session.messages.some((m) => m.toolCalls?.length) ? "The conversation included tool-assisted steps." : null,
   ].filter(Boolean) as string[];
-
   return insights.length ? insights : ["Refine the distilled summary from the exported conversation."];
 }
 
@@ -95,7 +92,6 @@ function deriveOpenQuestions(session: ChatSession): string[] {
     .filter((line) => line.includes("?"))
     .slice(0, 3)
     .map((line) => truncate(line, 180));
-
   return userQuestions.length
     ? userQuestions
     : [
@@ -105,45 +101,49 @@ function deriveOpenQuestions(session: ChatSession): string[] {
       ];
 }
 
-function buildConversationMarkdown(session: ChatSession, source: string, sourceChatSurface: string, exportTime: string): string {
+function buildConversationMarkdown(
+  session: ChatSession,
+  source: string,
+  sourceChatSurface: string,
+  exportTime: string
+): string {
   const conversation = session.messages
     .map((message) => {
       const header = `### ${message.role} — ${iso(message.createdAt)}`;
       const body = message.content?.trim()
         ? message.content.trim()
         : message.role === "tool" && message.toolData !== undefined
-          ? `\`\`\`json\n${JSON.stringify(message.toolData, null, 2)}\n\`\`\``
+          ? "```json\n" + JSON.stringify(message.toolData, null, 2) + "\n```"
           : "(no content)";
       const toolCalls = message.toolCalls?.length
-        ? `\n\n**Tool calls**\n\n${message.toolCalls
+        ? "\n\n**Tool calls**\n\n" +
+          message.toolCalls
             .map(
               (toolCall) =>
-                `- \`${toolCall.function.name}\`\n\n\`\`\`json\n${JSON.stringify(toolCall.function.arguments ?? {}, null, 2)}\n\`\`\``
+                "- `" + toolCall.function.name + "`\n\n```json\n" +
+                JSON.stringify(toolCall.function.arguments ?? {}, null, 2) +
+                "\n```"
             )
-            .join("\n\n")}`
+            .join("\n\n")
         : "";
       return `${header}\n\n${body}${toolCalls}`;
     })
     .join("\n\n---\n\n");
 
-  return `# Conversation Record
-
-## Source
-- session id: ${session.id}
-- exported from: ${source}
-- source chat surface: ${sourceChatSurface}
-- export time: ${exportTime}
-
-## Notes
-This file is for the cleaned or selected conversation record.
-
-It should not be a blind dump if a refined transcript is available.
-Use this file to preserve the useful dialogue, excerpts, or structured transcript.
-
-## Conversation
-
-${conversation}
-`;
+  return (
+    "# Conversation Record\n\n" +
+    "## Source\n" +
+    "- session id: " + session.id + "\n" +
+    "- exported from: " + source + "\n" +
+    "- source chat surface: " + sourceChatSurface + "\n" +
+    "- export time: " + exportTime + "\n\n" +
+    "## Notes\n" +
+    "This file is for the cleaned or selected conversation record.\n\n" +
+    "It should not be a blind dump if a refined transcript is available.\n" +
+    "Use this file to preserve the useful dialogue, excerpts, or structured transcript.\n\n" +
+    "## Conversation\n\n" +
+    conversation + "\n"
+  );
 }
 
 function buildPromptChain(session: ChatSession, settings?: Partial<ChatSettings>): string {
@@ -183,273 +183,136 @@ export function buildSpecRepoBundle(
   const title = options.title?.trim() || session.title.trim() || "untitled-spec";
   const repoName = slugify(title) || `spec-${uid().slice(0, 8)}`;
   const summary = options.summary?.trim() || deriveSummary(session);
-  const nextAction = options.nextAction?.trim() || "Refine SUMMARY.md and SPEC.md from the exported conversation.";
+  const nextAction =
+    options.nextAction?.trim() || "Refine SUMMARY.md and SPEC.md from the exported conversation.";
   const openQuestions = deriveOpenQuestions(session);
   const keyInsights = deriveKeyInsights(session);
   const decisions = deriveDecisions(session);
   const nowDate = exportTime.slice(0, 10);
 
-  const readme = `# ${repoName}
-
-> A Studio OS template for turning conversations into durable, forkable, provenance-aware spec repos.
-
-A Studio OS template for conversation-derived spec repos.
-
-This repo structure is designed to turn a conversation into a durable, Git-backed specification that can remain:
-
-- memory
-- writing
-- planning
-- research
-- recipes
-- notes
-- poetry
-- article/book development
-
-or evolve into:
-
-- software
-- workflow automation
-- prototype
-- generated code
-- digital artifacts
-
-## What this repo is
-
-A spec repo is a structured package of:
-
-- intent
-- context
-- constraints
-- provenance
-- prompt lineage
-- optional artifacts
-- optional generated code
-
-It is not limited to software.
-
-## Core idea
-
-A conversation becomes more useful when it is transformed into:
-
-- a readable summary
-- a durable spec
-- a provenance record
-- an optional prompt chain
-- an optional artifact/code handoff surface
-
-## Main files
-
-- \\`SPEC.md\\` — distilled specification
-- \\`SUMMARY.md\\` — concise summary of the conversation
-- \\`CONVERSATION.md\\` — cleaned conversation record
-- \\`STATUS.md\\` — current phase/state
-- \\`DECISIONS.md\\` — major decisions and reasoning
-- \\`TASKS.md\\` — next actions
-- \\`PROMPT_CHAIN.json\\` — extracted prompt lineage
-- \\`PROVENANCE.json\\` — chain of custody
-- \\`ARTIFACTS.json\\` — outputs and linked artifacts
-
-## Studio OS meaning
-
-In Studio OS, a spec repo is the durable handoff object between:
-
-- brainstorming
-- refinement
-- coding
-- evaluation
-- publication
-- memory
-
-## Suggested lifecycle
-
-1. Have a conversation in Studio OS
-2. Promote it to a spec repo
-3. Refine summary/spec
-4. Optionally generate code or artifacts
-5. Save outputs back into the repo
-6. Fork, branch, archive, or publish
-
-## Output folders
-
-- \\`outputs/generated-code/\\` — generated source code
-- \\`outputs/docs/\\` — generated documents
-- \\`outputs/images/\\` — generated images
-- \\`outputs/other/\\` — other artifacts
-
-## Notes
-
-This template is intentionally spec-first.
-It should be usable even if no code is ever generated.
-`;
-
-  const spec = `# Spec
-
-## Title
-${title}
-
-## Intent
-Convert this conversation into a durable Studio OS spec repo that can remain planning/memory or evolve into implementation.
-
-## Why this exists
-This repo was generated from a Studio-OS-Chat conversation so the work can be preserved as a structured, Git-backed object with provenance.
-
-## Desired outcome
-A readable, editable, provenance-aware spec repo that can guide future writing, planning, software generation, or artifact creation.
-
-## Audience / user
-- The original human author
-- Future collaborators
-- Coding models using the repo as a handoff surface
-
-## Constraints
-- Preserve conversation provenance
-- Keep the repo useful even without code
-- Maintain a spec-first structure
-- Generated code, if any, belongs under \\`outputs/generated-code/\\`
-
-## Requirements
-
-### Functional requirements
-- Preserve the conversation in a structured record
-- Distill the conversation into a readable summary and spec
-- Track provenance, decisions, tasks, and prompt lineage
-
-### Non-functional requirements
-- Simplicity
-- Maintainability
-- Human readability
-- Model readability
-- Low-friction for future evolution
-
-## Inputs
-- The exported Studio-OS-Chat conversation
-- Session metadata
-- Optional provider/model metadata
-
-## Outputs
-- Structured markdown files
-- Provenance JSON
-- Prompt chain JSON
-- Artifact registry JSON
-
-## Possible forms
-This spec may eventually become one or more of the following:
-
-- article
-- book
-- poem
-- research note
-- recipe collection
-- software
-- prototype
-- workflow
-- automation
-- calculator
-- calendar
-- CRM
-- image set
-- internal tool
-
-## Prompt-chain relevance
-Yes. This repo includes prompt lineage so future work can reconstruct how the idea evolved.
-
-## Artifact expectations
-This spec may later produce generated docs, images, code, or other digital artifacts saved into the outputs folder.
-
-## Open questions
-- ${openQuestions.join("\n- ")}
-
-## Next best action
-${nextAction}
-`;
-
-  const summaryMd = `# Summary
-
-## One-paragraph summary
-${summary}
-
-## Key insights
-- ${keyInsights.join("\n- ")}
-
-## Most important decisions
-- ${decisions.join("\n- ")}
-
-## Risks / unknowns
-- The generated summary and spec may need human refinement.
-- Prompt lineage may need cleanup if the session contained tool-only noise.
-
-## Recommended next step
-${nextAction}
-`;
-
-  const status = `# Status
-
-Current phase: spec
-
-## Pipeline
-- [x] Conversation captured
-- [x] Summary created
-- [x] Spec drafted
-- [x] Prompt chain extracted
-- [ ] Artifact defined
-- [ ] Code generated
-- [ ] Artifact tested
-- [ ] Published
-- [ ] Archived
-
-## Current focus
-Refine the generated spec and decide whether this repo remains planning/memory or evolves into a build target.
-
-## Notes
-Generated from Studio-OS-Chat on ${exportTime}.
-`;
-
-  const decisionsMd = `# Decisions
-
-## Decision Log
-
-### ${nowDate}
-**Decision:**  
-Promote this conversation into a Studio OS spec repo.
-
-**Reason:**  
-The conversation has enough structure and value to preserve as a durable handoff object.
-
-**Impact:**  
-The work now exists as a Git-backed repository with summary, spec, provenance, prompt lineage, and task surfaces.
-
----
-
-### ${nowDate}
-**Decision:**  
-Keep the repo spec-first rather than code-first.
-
-**Reason:**  
-The Studio OS template is intended to preserve intent and structure before implementation choices are locked.
-
-**Impact:**  
-Future code generation remains optional and should be placed under \\`outputs/generated-code/\\`.
-`;
-
-  const tasks = `# Tasks
-
-## Now
-- Refine SUMMARY.md
-- Refine SPEC.md
-
-## Next
-- Review PROMPT_CHAIN.json for cleanup
-- Decide whether to create an implementation repo or remain spec-only
-
-## Later
-- Define artifacts in ARTIFACTS.json
-- Generate code or documents if needed
-
-## Backlog
-- Add examples or schemas specific to this spec
-- Record downstream forks or publications
-`;
+  const readme =
+    "# " + repoName + "\n\n" +
+    "> A Studio OS template for turning conversations into durable, forkable, provenance-aware spec repos.\n\n" +
+    "A Studio OS template for conversation-derived spec repos.\n\n" +
+    "This repo structure is designed to turn a conversation into a durable, Git-backed specification that can remain:\n\n" +
+    "- memory\n- writing\n- planning\n- research\n- recipes\n- notes\n- poetry\n- article/book development\n\n" +
+    "or evolve into:\n\n" +
+    "- software\n- workflow automation\n- prototype\n- generated code\n- digital artifacts\n\n" +
+    "## What this repo is\n\n" +
+    "A spec repo is a structured package of:\n\n" +
+    "- intent\n- context\n- constraints\n- provenance\n- prompt lineage\n- optional artifacts\n- optional generated code\n\n" +
+    "It is not limited to software.\n\n" +
+    "## Core idea\n\n" +
+    "A conversation becomes more useful when it is transformed into:\n\n" +
+    "- a readable summary\n- a durable spec\n- a provenance record\n- an optional prompt chain\n- an optional artifact/code handoff surface\n\n" +
+    "## Main files\n\n" +
+    "- `SPEC.md` — distilled specification\n" +
+    "- `SUMMARY.md` — concise summary of the conversation\n" +
+    "- `CONVERSATION.md` — cleaned conversation record\n" +
+    "- `STATUS.md` — current phase/state\n" +
+    "- `DECISIONS.md` — major decisions and reasoning\n" +
+    "- `TASKS.md` — next actions\n" +
+    "- `PROMPT_CHAIN.json` — extracted prompt lineage\n" +
+    "- `PROVENANCE.json` — chain of custody\n" +
+    "- `ARTIFACTS.json` — outputs and linked artifacts\n\n" +
+    "## Studio OS meaning\n\n" +
+    "In Studio OS, a spec repo is the durable handoff object between:\n\n" +
+    "- brainstorming\n- refinement\n- coding\n- evaluation\n- publication\n- memory\n\n" +
+    "## Suggested lifecycle\n\n" +
+    "1. Have a conversation in Studio OS\n" +
+    "2. Promote it to a spec repo\n" +
+    "3. Refine summary/spec\n" +
+    "4. Optionally generate code or artifacts\n" +
+    "5. Save outputs back into the repo\n" +
+    "6. Fork, branch, archive, or publish\n\n" +
+    "## Output folders\n\n" +
+    "- `outputs/generated-code/` — generated source code\n" +
+    "- `outputs/docs/` — generated documents\n" +
+    "- `outputs/images/` — generated images\n" +
+    "- `outputs/other/` — other artifacts\n\n" +
+    "## Notes\n\n" +
+    "This template is intentionally spec-first.\n" +
+    "It should be usable even if no code is ever generated.\n";
+
+  const spec =
+    "# Spec\n\n" +
+    "## Title\n" + title + "\n\n" +
+    "## Intent\n" +
+    "Convert this conversation into a durable Studio OS spec repo that can remain planning/memory or evolve into implementation.\n\n" +
+    "## Why this exists\n" +
+    "This repo was generated from a Studio-OS-Chat conversation so the work can be preserved as a structured, Git-backed object with provenance.\n\n" +
+    "## Desired outcome\n" +
+    "A readable, editable, provenance-aware spec repo that can guide future writing, planning, software generation, or artifact creation.\n\n" +
+    "## Audience / user\n" +
+    "- The original human author\n- Future collaborators\n- Coding models using the repo as a handoff surface\n\n" +
+    "## Constraints\n" +
+    "- Preserve conversation provenance\n" +
+    "- Keep the repo useful even without code\n" +
+    "- Maintain a spec-first structure\n" +
+    "- Generated code, if any, belongs under `outputs/generated-code/`\n\n" +
+    "## Requirements\n\n" +
+    "### Functional requirements\n" +
+    "- Preserve the conversation in a structured record\n" +
+    "- Distill the conversation into a readable summary and spec\n" +
+    "- Track provenance, decisions, tasks, and prompt lineage\n\n" +
+    "### Non-functional requirements\n" +
+    "- Simplicity\n- Maintainability\n- Human readability\n- Model readability\n- Low-friction for future evolution\n\n" +
+    "## Open questions\n- " + openQuestions.join("\n- ") + "\n\n" +
+    "## Next best action\n" + nextAction + "\n";
+
+  const summaryMd =
+    "# Summary\n\n" +
+    "## One-paragraph summary\n" + summary + "\n\n" +
+    "## Key insights\n- " + keyInsights.join("\n- ") + "\n\n" +
+    "## Most important decisions\n- " + decisions.join("\n- ") + "\n\n" +
+    "## Risks / unknowns\n" +
+    "- The generated summary and spec may need human refinement.\n" +
+    "- Prompt lineage may need cleanup if the session contained tool-only noise.\n\n" +
+    "## Recommended next step\n" + nextAction + "\n";
+
+  const status =
+    "# Status\n\n" +
+    "Current phase: spec\n\n" +
+    "## Pipeline\n" +
+    "- [x] Conversation captured\n" +
+    "- [x] Summary created\n" +
+    "- [x] Spec drafted\n" +
+    "- [x] Prompt chain extracted\n" +
+    "- [ ] Artifact defined\n" +
+    "- [ ] Code generated\n" +
+    "- [ ] Artifact tested\n" +
+    "- [ ] Published\n" +
+    "- [ ] Archived\n\n" +
+    "## Current focus\n" +
+    "Refine the generated spec and decide whether this repo remains planning/memory or evolves into a build target.\n\n" +
+    "## Notes\n" +
+    "Generated from Studio-OS-Chat on " + exportTime + ".\n";
+
+  const decisionsMd =
+    "# Decisions\n\n" +
+    "## Decision Log\n\n" +
+    "### " + nowDate + "\n" +
+    "**Decision:**  \nPromote this conversation into a Studio OS spec repo.\n\n" +
+    "**Reason:**  \nThe conversation has enough structure and value to preserve as a durable handoff object.\n\n" +
+    "**Impact:**  \nThe work now exists as a Git-backed repository with summary, spec, provenance, prompt lineage, and task surfaces.\n\n" +
+    "---\n\n" +
+    "### " + nowDate + "\n" +
+    "**Decision:**  \nKeep the repo spec-first rather than code-first.\n\n" +
+    "**Reason:**  \nThe Studio OS template is intended to preserve intent and structure before implementation choices are locked.\n\n" +
+    "**Impact:**  \nFuture code generation remains optional and should be placed under `outputs/generated-code/`.\n";
+
+  const tasks =
+    "# Tasks\n\n" +
+    "## Now\n- Refine SUMMARY.md\n- Refine SPEC.md\n\n" +
+    "## Next\n" +
+    "- Review PROMPT_CHAIN.json for cleanup\n" +
+    "- Decide whether to create an implementation repo or remain spec-only\n\n" +
+    "## Later\n" +
+    "- Define artifacts in ARTIFACTS.json\n" +
+    "- Generate code or documents if needed\n\n" +
+    "## Backlog\n" +
+    "- Add examples or schemas specific to this spec\n" +
+    "- Record downstream forks or publications\n";
 
   const provenance = JSON.stringify(
     {
@@ -483,14 +346,7 @@ Future code generation remains optional and should be placed under \\`outputs/ge
     2
   );
 
-  const artifacts = JSON.stringify(
-    {
-      version: "1.0.0",
-      artifacts: [],
-    },
-    null,
-    2
-  );
+  const artifacts = JSON.stringify({ version: "1.0.0", artifacts: [] }, null, 2);
 
   const manifest = JSON.stringify(
     {
@@ -524,67 +380,36 @@ Future code generation remains optional and should be placed under \\`outputs/ge
     2
   );
 
-  const repoRules = `# Repo Rules
+  const repoRules =
+    "# Repo Rules\n\n" +
+    "## Rule 1\nThis repo is spec-first.\n\n" +
+    "## Rule 2\nDo not assume this repo must become software.\n\n" +
+    "## Rule 3\nPreserve provenance whenever possible:\n- human\n- conversation/session\n- model/provider\n- export time\n\n" +
+    "## Rule 4\nUse `SPEC.md` as the main handoff file for coding models.\n\n" +
+    "## Rule 5\nUse `SUMMARY.md` for fast human orientation.\n\n" +
+    "## Rule 6\nIf code is generated, place it under `outputs/generated-code/` unless a later repo structure replaces it.\n\n" +
+    "## Rule 7\nIf this repo forks into an implementation repo, record that fork in `ARTIFACTS.json` and/or `PROVENANCE.json`.\n";
 
-## Rule 1
-This repo is spec-first.
+  const gitignore =
+    ".DS_Store\nnode_modules/\ndist/\nbuild/\n.env\n.env.local\n.env.*.local\ncoverage/\n*.log\n";
 
-## Rule 2
-Do not assume this repo must become software.
-
-## Rule 3
-Preserve provenance whenever possible:
-- human
-- conversation/session
-- model/provider
-- export time
-
-## Rule 4
-Use \\`SPEC.md\\` as the main handoff file for coding models.
-
-## Rule 5
-Use \\`SUMMARY.md\\` for fast human orientation.
-
-## Rule 6
-If code is generated, place it under \\`outputs/generated-code/\\` unless a later repo structure replaces it.
-
-## Rule 7
-If this repo forks into an implementation repo, record that fork in \\`ARTIFACTS.json\\` and/or \\`PROVENANCE.json\\`.
-`;
-
-  const gitignore = `.DS_Store
-node_modules/
-dist/
-build/
-.env
-.env.local
-.env.*.local
-coverage/
-*.log
-`;
-
-  const license = `MIT License
-
-Copyright (c) 2026
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-`;
+  const license =
+    "MIT License\n\nCopyright (c) 2026\n\n" +
+    "Permission is hereby granted, free of charge, to any person obtaining a copy\n" +
+    "of this software and associated documentation files (the \"Software\"), to deal\n" +
+    "in the Software without restriction, including without limitation the rights\n" +
+    "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n" +
+    "copies of the Software, and to permit persons to whom the Software is\n" +
+    "furnished to do so, subject to the following conditions:\n\n" +
+    "The above copyright notice and this permission notice shall be included in all\n" +
+    "copies or substantial portions of the Software.\n\n" +
+    "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n" +
+    "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n" +
+    "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n" +
+    "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n" +
+    "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n" +
+    "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n" +
+    "SOFTWARE.\n";
 
   const files: Record<string, string> = {
     "README.md": readme,
@@ -597,9 +422,10 @@ SOFTWARE.
     "PROMPT_CHAIN.json": buildPromptChain(session, settings),
     "PROVENANCE.json": provenance,
     "ARTIFACTS.json": artifacts,
-    LICENSE: license,
+    "LICENSE": license,
     ".gitignore": gitignore,
-    "notes/scratchpad.md": "# Scratchpad\n\nUse this file for loose notes, fragments, partial ideas, and temporary structure.\n",
+    "notes/scratchpad.md":
+      "# Scratchpad\n\nUse this file for loose notes, fragments, partial ideas, and temporary structure.\n",
     "outputs/generated-code/.gitkeep": "",
     "outputs/docs/.gitkeep": "",
     "outputs/images/.gitkeep": "",
@@ -609,12 +435,7 @@ SOFTWARE.
     ".studio-os/repo-rules.md": repoRules,
   };
 
-  return {
-    repoName,
-    files,
-    title,
-    description: TEMPLATE_DESCRIPTION,
-  };
+  return { repoName, files, title, description: TEMPLATE_DESCRIPTION };
 }
 
 export function buildSpecRepoBundleFromExport(
@@ -629,7 +450,6 @@ export function buildSpecRepoBundleFromExport(
       options.summary ??
       `Conversation promoted from Studio-OS-Chat export artifact ${bundle.osmdPath} into a Studio OS spec repo scaffold.`,
   };
-
   return buildSpecRepoBundle(session, settings, nextOptions);
 }
 
