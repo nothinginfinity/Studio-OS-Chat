@@ -39,7 +39,7 @@ export const githubReadTool: ToolDefinition = {
     "Read the contents of a file from a GitHub repository using the stored PAT. " +
     "Returns the decoded file content as a string. " +
     "Use this to inspect existing files before pushing updates.",
-  parameters: {
+  inputSchema: {
     type: "object",
     properties: {
       owner: {
@@ -61,8 +61,8 @@ export const githubReadTool: ToolDefinition = {
     },
     required: ["owner", "repo", "path"],
   },
-  async run(args: Record<string, string>) {
-    const { owner, repo, path, ref } = args;
+  async run(args: unknown) {
+    const { owner, repo, path, ref } = args as Record<string, string>;
     const pat = await getPat();
     const url = ref
       ? `${GITHUB_API}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`
@@ -90,7 +90,7 @@ export const githubPushTool: ToolDefinition = {
     "Create or update a file in a GitHub repository using the stored PAT. " +
     "If the file already exists, fetches its current SHA automatically before updating. " +
     "Returns the commit URL on success.",
-  parameters: {
+  inputSchema: {
     type: "object",
     properties: {
       owner: {
@@ -120,8 +120,8 @@ export const githubPushTool: ToolDefinition = {
     },
     required: ["owner", "repo", "path", "content", "message"],
   },
-  async run(args: Record<string, string>) {
-    const { owner, repo, path, content, message, branch } = args;
+  async run(args: unknown) {
+    const { owner, repo, path, content, message, branch } = args as Record<string, string>;
     const pat = await getPat();
 
     // Check if file exists to get its SHA (required for updates)
