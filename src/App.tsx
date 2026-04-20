@@ -1,7 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { useChat } from "./hooks/useChat";
+
+type Tab = "chats" | "library" | "files" | "spaces" | "settings";
 
 export default function App() {
   const {
@@ -28,9 +30,23 @@ export default function App() {
     reusePromptText,
   } = useChat();
 
+  const [sidebarTab, setSidebarTab] = useState<Tab>("chats");
+
   const handleInsertPrompt = useCallback((content: string) => {
     reusePromptText(content);
   }, [reusePromptText]);
+
+  // Listen for file-preview sheet "Summarize in new chat" action
+  useEffect(() => {
+    async function handler(e: Event) {
+      const { previewText, name } = (e as CustomEvent<{ previewText: string; name: string }>).detail;
+      const prompt = `Summarize and analyse the following content from "${name}":\n\n${previewText}`;
+      await createSessionWithDraft(prompt);
+      setSidebarTab("chats");
+    }
+    window.addEventListener("studio:new-chat-from-file", handler);
+    return () => window.removeEventListener("studio:new-chat-from-file", handler);
+  }, [createSessionWithDraft]);
 
   if (!dbReady) {
     return (
@@ -68,6 +84,8 @@ export default function App() {
         onReusePrompt={reusePromptText}
         onCreateSessionWithDraft={createSessionWithDraft}
         onDeleteSession={deleteSession}
+        activeTab={sidebarTab}
+        onTabChange={setSidebarTab}
       />
       <ChatWindow
         messages={messages}

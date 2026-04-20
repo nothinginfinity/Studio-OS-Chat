@@ -14,6 +14,8 @@ import { PromptLibrary } from "./PromptLibrary";
 import { ChatActionSheet } from "./ChatActionSheet";
 import { useLongPress } from "../hooks/useLongPress";
 
+type Tab = "chats" | "library" | "files" | "spaces" | "settings";
+
 interface SidebarProps {
   settings: ChatSettings;
   setSettings: React.Dispatch<React.SetStateAction<ChatSettings>>;
@@ -28,9 +30,10 @@ interface SidebarProps {
   onReusePrompt: (text: string) => void;
   onCreateSessionWithDraft: (text: string) => Promise<unknown>;
   onDeleteSession?: (sessionId: string) => void;
+  /** Controlled tab — when provided, parent owns tab state */
+  activeTab?: Tab;
+  onTabChange?: (tab: Tab) => void;
 }
-
-type Tab = "chats" | "library" | "files" | "spaces" | "settings";
 
 // ── Inner component: one long-pressable session row ───────────────────────────
 function SessionRow({
@@ -75,7 +78,7 @@ function SessionRow({
       <div className="session-row-meta">
         <SessionTitleEditor
           title={session.title}
-          onSave={(title) => { /* handled via sheet rename */ }}
+          onSave={(_title) => { /* handled via sheet rename */ }}
         />
         {session.exportRef?.exportPath ? (
           <span
@@ -105,12 +108,20 @@ export function Sidebar({
   onReusePrompt,
   onCreateSessionWithDraft,
   onDeleteSession,
+  activeTab,
+  onTabChange,
 }: SidebarProps) {
-  const [tab, setTab] = useState<Tab>("chats");
+  // Internal tab state used only when parent does not control it
+  const [internalTab, setInternalTab] = useState<Tab>("chats");
+  const tab: Tab = activeTab ?? internalTab;
+  function setTab(next: Tab) {
+    if (onTabChange) onTabChange(next);
+    else setInternalTab(next);
+  }
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeSheetSession, setActiveSheetSession] = useState<ChatSession | null>(null);
 
-  // Ref to the ExportChatButton trigger — we programmatically fire export from sheet
   const exportTriggerRef = useRef<{ export: (sessionId: string) => void } | null>(null);
 
   const activeSession =
@@ -130,7 +141,6 @@ export function Sidebar({
     setHistoryOpen(false);
   }
 
-  // ChatActionSheet handlers
   function handleSheetOpen(sessionId: string) {
     onSelectSession(sessionId);
   }
@@ -144,8 +154,6 @@ export function Sidebar({
 
   function handleSheetExport(sessionId: string) {
     onSelectSession(sessionId);
-    // Export button in the chats tab handles the actual export;
-    // selecting the session is sufficient to make ExportChatButton active.
     setTab("chats");
   }
 
@@ -157,7 +165,6 @@ export function Sidebar({
     if (onDeleteSession) {
       onDeleteSession(sessionId);
     } else {
-      // Stub until Commit 3 wires deleteSession into useChat
       console.info("[ChatActionSheet] delete stub — sessionId:", sessionId);
     }
   }
@@ -170,43 +177,22 @@ export function Sidebar({
 
       {/* Tab bar */}
       <div className="sidebar-tabs">
-        <button
-          className={tab === "chats" ? "tab active" : "tab"}
-          onClick={() => setTab("chats")}
-        >
+        <button className={tab === "chats" ? "tab active" : "tab"} onClick={() => setTab("chats")}>
           Chats
         </button>
-        <button
-          className="tab"
-          onClick={() => setHistoryOpen(true)}
-          aria-label="Prompt history"
-        >
+        <button className="tab" onClick={() => setHistoryOpen(true)} aria-label="Prompt history">
           History
         </button>
-        <button
-          className={tab === "library" ? "tab active" : "tab"}
-          onClick={() => setTab("library")}
-          aria-label="Prompt library"
-        >
+        <button className={tab === "library" ? "tab active" : "tab"} onClick={() => setTab("library")} aria-label="Prompt library">
           Library
         </button>
-        <button
-          className={tab === "files" ? "tab active" : "tab"}
-          onClick={() => setTab("files")}
-        >
+        <button className={tab === "files" ? "tab active" : "tab"} onClick={() => setTab("files")}>
           Files
         </button>
-        <button
-          className={tab === "spaces" ? "tab active" : "tab"}
-          onClick={() => setTab("spaces")}
-        >
+        <button className={tab === "spaces" ? "tab active" : "tab"} onClick={() => setTab("spaces")}>
           Spaces
         </button>
-        <button
-          className={tab === "settings" ? "tab active" : "tab"}
-          onClick={() => setTab("settings")}
-          aria-label="Settings"
-        >
+        <button className={tab === "settings" ? "tab active" : "tab"} onClick={() => setTab("settings")} aria-label="Settings">
           ⚙️
         </button>
       </div>
@@ -234,10 +220,7 @@ export function Sidebar({
               rows={4}
               value={settings.systemPrompt}
               onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  systemPrompt: e.target.value,
-                }))
+                setSettings((prev) => ({ ...prev, systemPrompt: e.target.value }))
               }
             />
           </label>
@@ -246,7 +229,6 @@ export function Sidebar({
 
           <div className="sidebar-section-divider" />
 
-          {/* Export panel */}
           <div className="session-export-panel">
             <ExportChatButton
               session={activeSession}
@@ -255,14 +237,10 @@ export function Sidebar({
             />
             {activeSession?.exportRef ? (
               <div className="export-status-detail">
-                <div>
-                  <strong>Format:</strong> {activeSession.exportRef.format}
-                </div>
+                <div><strong>Format:</strong> {activeSession.exportRef.format}</div>
                 <div>
                   <strong>Path:</strong>{" "}
-                  <span className="export-path-text">
-                    {activeSession.exportRef.exportPath}
-                  </span>
+                  <span className="export-path-text">{activeSession.exportRef.exportPath}</span>
                 </div>
                 <div>
                   <strong>Exported:</strong>{" "}
@@ -274,12 +252,9 @@ export function Sidebar({
         </>
       )}
 
-      {/* Prompt Library tab */}
+      {/* Library tab */}
       {tab === "library" && (
-        <PromptLibrary
-          active={tab === "library"}
-          onInsertPrompt={onInsertPrompt}
-        />
+        <PromptLibrary active={tab === "library"} onInsertPrompt={onInsertPrompt} />
       )}
 
       {/* Files tab */}
@@ -297,22 +272,14 @@ export function Sidebar({
       {/* Settings tab */}
       {tab === "settings" && (
         <>
-          <ProviderSettings
-            settings={settings}
-            onSettingsChange={handleSettingsChange}
-          />
+          <ProviderSettings settings={settings} onSettingsChange={handleSettingsChange} />
 
           {settings.provider === "ollama" && (
             <label className="field">
               <span>Ollama URL</span>
               <input
                 value={settings.ollamaBaseUrl}
-                onChange={(e) =>
-                  setSettings((prev) => ({
-                    ...prev,
-                    ollamaBaseUrl: e.target.value,
-                  }))
-                }
+                onChange={(e) => setSettings((prev) => ({ ...prev, ollamaBaseUrl: e.target.value }))}
               />
             </label>
           )}
@@ -335,7 +302,7 @@ export function Sidebar({
         onCreateSessionWithDraft={handleNewChatFromPrompt}
       />
 
-      {/* Chat Action Sheet — opened by long-press on any session row */}
+      {/* Chat Action Sheet */}
       <ChatActionSheet
         session={activeSheetSession}
         onClose={() => setActiveSheetSession(null)}
