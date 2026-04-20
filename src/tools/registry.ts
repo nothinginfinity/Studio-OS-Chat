@@ -1,17 +1,15 @@
 /**
- * registry.ts — v2
+ * registry.ts — v3
  *
  * Central tool registry for Studio-OS-Chat.
  *
- * All tools must be registered here. The registry is the single source of
- * truth for which tools the model can call. Tool definitions are typed via
- * ToolDefinition in types.ts.
- *
- * Registered tools (v2):
+ * Registered tools (v3):
  *   calculator   — evaluate arithmetic expressions
  *   echo         — debug/test: echo args back
  *   file_search  — BM25 lexical search over indexed local files
- *   ocr_ingest   — OCR ingestion pipeline (screenshot/document/code/receipt)
+ *   ocr_ingest   — OCR ingestion pipeline
+ *   github_read  — read a file from a GitHub repo using stored PAT
+ *   github_push  — create or update a file in a GitHub repo using stored PAT
  */
 
 import type { ToolDefinition } from "../lib/types";
@@ -19,8 +17,9 @@ import { calculatorTool } from "./calculator";
 import { echoTool } from "./echo";
 import { fileSearchTool } from "./fileSearch";
 import { ocrTool } from "./ocr";
+import { githubReadTool, githubPushTool } from "./github";
 
-// ── Registry map ────────────────────────────────────────────────────────────────
+// ── Registry map ────────────────────────────────────────────────────────────────────
 
 const _registry = new Map<string, ToolDefinition>();
 
@@ -31,13 +30,14 @@ function register(tool: ToolDefinition): void {
   _registry.set(tool.name, tool);
 }
 
-// Register all tools
 register(calculatorTool);
 register(echoTool);
 register(fileSearchTool);
 register(ocrTool);
+register(githubReadTool);
+register(githubPushTool);
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────────────────
 
 /** Returns all registered tools as an array. */
 export function getAllTools(): ToolDefinition[] {
@@ -49,30 +49,17 @@ export function getTool(name: string): ToolDefinition | undefined {
   return _registry.get(name);
 }
 
-/** Returns the names of all registered tools (useful for system prompt injection). */
+/** Returns the names of all registered tools. */
 export function getToolNames(): string[] {
   return [..._registry.keys()];
 }
 
-/**
- * Register an additional tool at runtime.
- * Useful for dynamically loaded tools or test overrides.
- */
+/** Register an additional tool at runtime. */
 export function registerTool(tool: ToolDefinition): void {
   register(tool);
 }
 
-// ── Legacy / convenience aliases (used by useChat.ts) ────────────────────────────
+// ── Legacy / convenience aliases (used by useChat.ts) ────────────────────────
 
-/**
- * Array of all registered tool definitions.
- * Equivalent to getAllTools() but exposed as a stable reference
- * for use in provider calls that expect a tools array.
- */
 export const toolRegistry: ToolDefinition[] = getAllTools();
-
-/**
- * Look up a tool by name. Returns undefined if not found.
- * Alias for getTool() — matches the import name used in useChat.ts.
- */
 export const getToolByName = getTool;
