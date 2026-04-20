@@ -15,6 +15,8 @@ function relativeTime(ts: number | null): string {
   return days < 7 ? `${days}d ago` : new Date(ts).toLocaleDateString();
 }
 
+const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
 interface Props {
   root: FileRootRecord | null;
   onClose: () => void;
@@ -38,7 +40,6 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
       try {
         const files = await listFilesByRoot(root.id);
         setFileCount(files.length);
-        // Gather up to 600 chars of text from first 3 chunks of first file
         if (files.length === 0) { setPreview(null); return; }
         const chunks = await listChunksByFile(files[0].id);
         const text = chunks.slice(0, 3).map(c => c.text).join("\n\n").trim();
@@ -66,12 +67,8 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
   }
 
   function handleShare() {
-    if (!preview) return;
-    if (navigator.share) {
-      navigator.share({ title: root!.name, text: preview }).catch(() => {});
-    } else {
-      handleCopy();
-    }
+    if (!preview || !canShare) return;
+    navigator.share({ title: root!.name, text: preview }).catch(() => {});
   }
 
   function handleSummarize() {
@@ -102,7 +99,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
       {/* ── Content preview pane ── */}
       {loading && (
         <div className="fps-preview fps-preview--loading">
-          <span className="fps-preview-spinner">&#9696;</span> Loading preview…
+          <span className="fps-preview-spinner">&#9696;</span> Loading preview&hellip;
         </div>
       )}
 
@@ -129,7 +126,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
 
       {!loading && !root.lastIndexedAt && (
         <div className="fps-preview fps-preview--empty">
-          Not yet indexed — re-index to generate a preview.
+          Not yet indexed &mdash; re-index to generate a preview.
         </div>
       )}
 
@@ -140,7 +137,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
 
         {preview && (
           <button className="action-sheet-btn" onClick={handleSummarize}>
-            <span className="action-sheet-btn-icon">✨</span>
+            <span className="action-sheet-btn-icon">\u2728</span>
             <span className="action-sheet-btn-label">
               <strong>Summarize in new chat</strong>
               <span className="action-sheet-btn-hint">Send file context to a fresh chat</span>
@@ -150,7 +147,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
 
         {preview && (
           <button className="action-sheet-btn" onClick={handleCopy}>
-            <span className="action-sheet-btn-icon">{copied ? "✓" : "⎘"}</span>
+            <span className="action-sheet-btn-icon">{copied ? "\u2713" : "\u2318"}</span>
             <span className="action-sheet-btn-label">
               <strong>{copied ? "Copied!" : "Copy text"}</strong>
               <span className="action-sheet-btn-hint">Copy preview text to clipboard</span>
@@ -158,9 +155,9 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
           </button>
         )}
 
-        {preview && navigator.share && (
+        {preview && canShare && (
           <button className="action-sheet-btn" onClick={handleShare}>
-            <span className="action-sheet-btn-icon">↥</span>
+            <span className="action-sheet-btn-icon">\u21a5</span>
             <span className="action-sheet-btn-label">
               <strong>Share</strong>
               <span className="action-sheet-btn-hint">Share file content via system sheet</span>
@@ -172,7 +169,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
           className="action-sheet-btn"
           onClick={() => { onReindex(root.id); onClose(); }}
         >
-          <span className="action-sheet-btn-icon">↻</span>
+          <span className="action-sheet-btn-icon">\u21bb</span>
           <span className="action-sheet-btn-label">
             <strong>Re-index</strong>
             <span className="action-sheet-btn-hint">Refresh indexed content</span>
@@ -183,7 +180,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
           className="action-sheet-btn action-sheet-btn--destructive"
           onClick={() => { onRemove(root.id); onClose(); }}
         >
-          <span className="action-sheet-btn-icon">🗑</span>
+          <span className="action-sheet-btn-icon">\ud83d\uddd1</span>
           <span className="action-sheet-btn-label">
             <strong>Remove source</strong>
             <span className="action-sheet-btn-hint">Delete from indexed sources</span>
