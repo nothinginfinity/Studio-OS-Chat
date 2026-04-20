@@ -1,5 +1,6 @@
 /**
  * db.ts — IndexedDB persistence backbone for studio-os-chat v3
+ * DB_VERSION 4 adds the `systemPrompts` object store.
  */
 
 import type {
@@ -14,10 +15,11 @@ import type {
   PromptHistoryItem,
   PromptRelationRecord,
   PromotePromptInput,
+  SystemPromptRecord,
 } from "./types";
 
 const DB_NAME = "studio-os-chat-v3";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const EXPORT_INDEX_SETTINGS_KEY = "__chat_export_index__";
 
@@ -97,6 +99,14 @@ function openDb(): Promise<IDBDatabase> {
         r.createIndex("toPromptAssetId", "toPromptAssetId");
         r.createIndex("type", "type");
         r.createIndex("createdAt", "createdAt");
+      }
+
+      // ── v4: system prompt library ────────────────────────────────────────────
+      if (!db.objectStoreNames.contains("systemPrompts")) {
+        const sp = db.createObjectStore("systemPrompts", { keyPath: "id" });
+        sp.createIndex("createdAt", "createdAt");
+        sp.createIndex("updatedAt", "updatedAt");
+        sp.createIndex("isPinned", "isPinned");
       }
     };
 
@@ -518,4 +528,47 @@ export async function searchChunksByTerms(queryTerms: string[], limit: number): 
     if (chunk) results.push({ chunk, score });
   }
   return results;
+}
+
+// ── System Prompt Library (v4) ────────────────────────────────────────────────
+
+export async function putSystemPrompt(record: SystemPromptRecord): Promise<void> {
+  const db = await openDb();
+  const t = tx(db, "systemPrompts", "readwrite");
+  await put(t.objectStore("systemPrompts"), record);
+}
+
+export async function getSystemPrompt(id: string): Promise<SystemPromptRecord | null> {
+  const db = await openDb();
+  const t = tx(db, "systemPrompts");
+  return get<SystemPromptRecord>(t.objectStore("systemPrompts"), id);
+}
+
+export async function listSystemPrompts(): Promise<SystemPromptRecord[]> {
+  const db = await openDb();
+  const t = tx(db, "systemPrompts");
+  const rows = await getAll<SystemPromptRecord>(t.objectStore("systemPrompts"));
+  // Pinned first, then sorted by updatedAt desc
+  return rows.sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+export async function updateSystemPrompt(
+  id: string,
+  patch: Partial<Omit<SystemPromptRecord, "id" | "createdAt">>
+): Promise<void> {
+  const db = await openDb();
+  const t = tx(db, "systemPrompts", "readwrite");
+  const store = t.objectStore("systemPrompts");
+  const existing = await get<SystemPromptRecord>(store, id);
+  if (!existing) return;
+  await put(store, { ...existing, ...patch, updatedAt: Date.now() });
+}
+
+export async function deleteSystemPrompt(id: string): Promise<void> {
+  const db = await openDb();
+  const t = tx(db, "systemPrompts", "readwrite");
+  await del(t.objectStore("systemPrompts"), id);
 }

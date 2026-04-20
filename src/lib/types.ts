@@ -64,6 +64,17 @@ export interface ChatSettings {
   apiKey: string;
 }
 
+// ── System Prompt Library ─────────────────────────────────────────────────────
+
+export interface SystemPromptRecord {
+  id: string;
+  name: string;
+  content: string;
+  isPinned: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ── IndexedDB records ─────────────────────────────────────────────────────────
 
 export interface SessionRecord {
