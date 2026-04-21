@@ -1,4 +1,3 @@
-import { nanoid } from "nanoid";
 import type { PostOcrBlock, PostOcrProcessedDocument } from "./types";
 import type {
   ConfidenceLevel,
@@ -66,7 +65,9 @@ export function normalizeOcrResult(
   const ambiguityCount = blocks.filter((b) => b.ambiguity !== undefined).length;
 
   return {
-    id: opts.resultId ?? nanoid(),
+    // crypto.randomUUID() is available in all modern browsers and Node 19+
+    // No external dependency needed.
+    id: opts.resultId ?? crypto.randomUUID(),
     processedAt: new Date().toISOString(),
     sourceId: opts.sourceId,
     ...(opts.sourceFilename ? { sourceFilename: opts.sourceFilename } : {}),
