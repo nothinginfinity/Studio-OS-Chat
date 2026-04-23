@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { useChat } from "./hooks/useChat";
+import { useSpaceMailbox } from "./hooks/useSpaceMailbox";
 
 type Tab = "chats" | "library" | "files" | "spaces" | "settings";
 
@@ -30,6 +31,17 @@ export default function App() {
     reusePromptText,
   } = useChat();
 
+  // ---------------------------------------------------------------------------
+  // Space mailbox — studio-os-chat ↔ studio-os-spaces
+  // PAT comes from settings.githubPat (GitHubSettings.tsx handles storage).
+  // Polling every 30 s; skipped silently if no PAT is configured yet.
+  // ---------------------------------------------------------------------------
+  const spaceMailbox = useSpaceMailbox({
+    spaceName: "studio-os-chat",
+    pat: (settings as Record<string, string>).githubPat ?? "",
+    pollIntervalMs: 30_000,
+  });
+
   const [sidebarTab, setSidebarTab] = useState<Tab>("chats");
 
   const handleInsertPrompt = useCallback((content: string) => {
@@ -47,6 +59,21 @@ export default function App() {
     window.addEventListener("studio:new-chat-from-file", handler);
     return () => window.removeEventListener("studio:new-chat-from-file", handler);
   }, [createSessionWithDraft]);
+
+  // ---------------------------------------------------------------------------
+  // React to inbound space messages
+  // Any envelope arriving in inbox with body starting "draft:" is auto-loaded
+  // as a chat draft so the user can review and send it.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const latest = spaceMailbox.inbox[0];
+    if (!latest) return;
+    if (latest.body.startsWith("draft:")) {
+      const text = latest.body.replace(/^draft:\s*/i, "");
+      setDraftText(text);
+      setSidebarTab("chats");
+    }
+  }, [spaceMailbox.inbox, setDraftText]);
 
   if (!dbReady) {
     return (
@@ -86,6 +113,7 @@ export default function App() {
         onDeleteSession={deleteSession}
         activeTab={sidebarTab}
         onTabChange={setSidebarTab}
+        spaceMailbox={spaceMailbox}
       />
       <ChatWindow
         messages={messages}
