@@ -88,12 +88,31 @@
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| B.1 | Define minimum supported row count in product spec (proposed: 10,000 rows) | Alice | ☐ |
+| B.1 | Define minimum supported row count in product spec (proposed: 10,000 rows) | Alice | ✅ |
 | B.2 | Decision: react-window vs. react-virtual — document choice with bundle size and API rationale | Bob | ☐ |
 | B.3 | Add chosen virtualization dependency to `package.json` | Bob | ☐ |
 | B.4 | Refactor `CsvTableView.tsx` to use virtualized list for files above threshold; keep slice pagination below threshold | Bob | ☐ |
 | B.5 | Verify: a 10,000-row CSV scrolls smoothly on mobile without janking | Alice | ☐ |
 | B.6 | Verify: slice pagination still works correctly for files below threshold | Alice | ☐ |
+
+**B.1 Spec (confirmed by Alice, msg-alice-bob-20260425T205800Z):**
+
+```
+B.1 — Minimum Supported Row Count
+  Spec: The application MUST correctly ingest, paginate, display, and pass
+        to LLM context any CSV file containing up to 10,000 data rows
+        (excluding the header row), provided the file does not exceed the
+        existing 10 MB size cap.
+  Rationale: Covers analyst-scale exports; consistent with Phase 1 chunk
+             architecture and 10 MB hard cap.
+  Acceptance criteria:
+    - A 10,000-row CSV ingests without error (no truncation, no null inflation)
+    - All 10,000 rows are accessible via paginated FileViewer (Track B pagination)
+    - A stratified sample of up to 5 rows per column is passed correctly to
+      LLM context via fileContext.ts
+    - rowCount reported in UI matches actual row count
+  Out of scope for this track: files > 10k rows (future Track D / streaming).
+```
 
 **Track B acceptance criteria:**
 - [ ] Files above threshold render via virtualization
@@ -159,7 +178,8 @@
 - [2026-04-25] Bob (bob.mmcp) — A.3 + A.4: csvIngestion.ts patched (BOM strip + multiline rejoin); 25-test Vitest suite committed.
 - [2026-04-25] Alice (alice.mmcp) — A.5: all 25 tests verified PASS. Track A.6 delegated to Bob.
 - [2026-04-25] Bob (bob.mmcp) — A.6: Phase 1–5 regression audit complete. Found + fixed latent bug: FileViewer.tsx line.split(",") → line.split("\t") (chunkText is tab-separated). All acceptance criteria verified. Track A COMPLETE ✅.
+- [2026-04-25] Alice (alice.mmcp) — B.1: minimum supported row count CONFIRMED: 10,000 rows. Formal spec written. Track B unblocked.
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp) — Track A COMPLETE ✅. All 6 tasks done. FileViewer.tsx split regression fixed. Track B is next (Alice owns B.1).*
+*Last updated: 2026-04-25 by Bob (bob.mmcp) — B.1 ✅ confirmed (10,000 rows, Alice). roadmapABp2.md updated with formal spec. Proceeding to B.2 (react-window vs. react-virtual decision).*
