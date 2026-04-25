@@ -36,6 +36,9 @@ import type {
 } from "../lib/types";
 import { usePersistentState } from "./usePersistentState";
 import { toolRegistry, getToolByName } from "../tools/registry";
+import { createChatSession } from "../lib/chatSession";
+import { buildFileContext } from "../lib/fileContext";
+import { listChunksByFile } from "../lib/db";
 
 function sessionToRecord(s: ChatSession, messageCount: number): SessionRecord {
   return {
@@ -72,8 +75,11 @@ function buildFileIndexAppendix(filePaths: string[]): string {
   );
 }
 
+// Extended session type that carries the file attachment id in memory only
+type AttachedSession = ChatSession & { attachedFileId?: string };
+
 export function useChat() {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessions, setSessions] = useState<AttachedSession[]>([]);
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(null);
   const [settings, setSettings] = usePersistentState<ChatSettings>(
     loadSettings,
@@ -85,6 +91,8 @@ export function useChat() {
   const [dbError, setDbError] = useState<string | null>(null);
   const [indexedFilePaths, setIndexedFilePaths] = useState<string[]>([]);
   const [draftText, setDraftText] = useState("");
+  // csvRows for the active attached file — kept in memory for ChatWindow
+  const [activeAttachedCsvRows, setActiveAttachedCsvRows] = useState<Record<string, string>[]>([]);
 
   const refreshFileIndex = useCallback(async () => {
     try {
@@ -99,7 +107,7 @@ export function useChat() {
     async function loadFromDb() {
       try {
         const records = await listSessions();
-        const hydrated: ChatSession[] = await Promise.all(
+        const hydrated: AttachedSession[] = await Promise.all(
           records.map(async (rec) => {
             const msgs = await listMessages(rec.id);
             return {
@@ -140,7 +148,7 @@ export function useChat() {
     if (dbReady) refreshFileIndex();
   }, [dbReady, refreshFileIndex]);
 
-  async function persistSessionMeta(session: ChatSession, msgCount: number) {
+  async function persistSessionMeta(session: AttachedSession, msgCount: number) {
     await putSession(sessionToRecord(session, msgCount));
   }
 
@@ -167,7 +175,10 @@ export function useChat() {
 
   const messages = activeSession?.messages ?? [];
 
-  async function upsertSession(next: ChatSession) {
+  // The attachedFileId of the currently active session (in-memory only)
+  const activeAttachedFileId = activeSession?.attachedFileId;
+
+  async function upsertSession(next: AttachedSession) {
     setSessions((prev) => {
       const exists = prev.some((s) => s.id === next.id);
       if (!exists) return [next, ...prev];
@@ -178,7 +189,7 @@ export function useChat() {
   }
 
   async function createSession(initialMessage?: string) {
-    const session: ChatSession = {
+    const session: AttachedSession = {
       id: uid(),
       title: initialMessage?.slice(0, 60) || "New Chat",
       titleSource: "auto",
@@ -190,6 +201,51 @@ export function useChat() {
     setActiveSessionIdState(session.id);
     return session;
   }
+
+  // ── Task 4.2: analyzeFileInChat ─────────────────────────────────────────────
+  // Creates a new chat session bound to a CSV file. Loads csvRows into memory
+  // for ChatWindow prop threading (task 4.4). Does NOT fire any LLM call.
+  const analyzeFileInChat = useCallback(async (fileId: string, fileName?: string) => {
+    const sessionObj = createChatSession({
+      attachedFileId: fileId,
+      title: fileName ? `Analyze: ${fileName}` : "CSV Analysis",
+    });
+
+    const session: AttachedSession = {
+      ...sessionObj,
+      attachedFileId: fileId,
+    };
+
+    await upsertSession(session);
+    setActiveSessionIdState(session.id);
+    setDraftText("");
+    setError("");
+
+    // Pre-load csvRows so ChatWindow can pass them to MessageList for chart rendering
+    try {
+      const allFiles = await listAllFiles();
+      const file = allFiles.find((f) => f.id === fileId);
+      if (file?.csvMeta) {
+        const chunks = await listChunksByFile(fileId);
+        const allText = chunks.map((c) => c.text).join("\n");
+        const lines = allText.split("\n").filter((l) => l.trim() !== "");
+        const cols = file.csvMeta.columns.map((c) => c.name);
+        const parsed = lines.map((line) => {
+          const vals = line.split(",");
+          const row: Record<string, string> = {};
+          cols.forEach((col, i) => { row[col] = vals[i] ?? ""; });
+          return row;
+        });
+        setActiveAttachedCsvRows(parsed);
+      } else {
+        setActiveAttachedCsvRows([]);
+      }
+    } catch {
+      setActiveAttachedCsvRows([]);
+    }
+
+    return session;
+  }, []);
 
   const reusePromptText = useCallback((text: string) => {
     setDraftText(text);
@@ -225,6 +281,12 @@ export function useChat() {
   function setActiveSession(id: string) {
     setActiveSessionIdState(id);
     setError("");
+    // Clear attached csv rows when switching away from a file-backed session
+    setSessions((prev) => {
+      const next = prev.find((s) => s.id === id);
+      if (!next?.attachedFileId) setActiveAttachedCsvRows([]);
+      return prev;
+    });
   }
 
   async function renameSession(sessionId: string, title: string) {
@@ -269,12 +331,44 @@ export function useChat() {
 
   const isOllama = settings.provider === "ollama" || !settings.provider;
 
+  // ── Task 4.3: buildFileContext injection helper ─────────────────────────────
+  // Returns a file-context prefix to prepend to the system prompt on the FIRST
+  // user message of a file-attached session. Returns "" on any error.
+  async function buildFileContextForSession(session: AttachedSession): Promise<string> {
+    if (!session.attachedFileId) return "";
+    if (session.messages.filter((m) => m.role === "user").length > 0) return ""; // not first
+    try {
+      const allFiles = await listAllFiles();
+      const file = allFiles.find((f) => f.id === session.attachedFileId);
+      if (!file?.csvMeta) return "";
+      const chunks = await listChunksByFile(file.id);
+      const allText = chunks.map((c) => c.text).join("\n");
+      const lines = allText.split("\n").filter((l) => l.trim() !== "");
+      const cols = file.csvMeta.columns.map((c) => c.name);
+      const rows = lines.map((line) => {
+        const vals = line.split(",");
+        const row: Record<string, string> = {};
+        cols.forEach((col, i) => { row[col] = vals[i] ?? ""; });
+        return row;
+      });
+      return buildFileContext(file, rows);
+    } catch {
+      return "";
+    }
+  }
+
   async function sendMessage(content: string) {
     const trimmed = content.trim();
     if (!trimmed || isLoading) return;
 
     setError("");
     const session = activeSession ?? await createSession(trimmed);
+
+    // Task 4.3: inject file context into system prompt on first message
+    const fileContextBlock = await buildFileContextForSession(session);
+    const systemPromptForCall = fileContextBlock
+      ? `${fileContextBlock}\n\n${effectiveSystemPrompt}`
+      : effectiveSystemPrompt;
 
     const userMessage: ChatMessage = {
       id: uid(),
@@ -292,7 +386,7 @@ export function useChat() {
       status: "streaming"
     };
 
-    const sessionWithUser: ChatSession = {
+    const sessionWithUser: AttachedSession = {
       ...session,
       title: session.messages.length === 0
         ? deriveSessionTitle([{ role: "user", content: trimmed }])
@@ -308,7 +402,8 @@ export function useChat() {
     try {
       const streamedToolCalls: ToolCall[] = [];
       const allMessages: OllamaMessage[] = [
-        ...ollamaMessages,
+        { role: "system", content: systemPromptForCall },
+        ...ollamaMessages.slice(1), // skip original system message, use ours
         { role: "user", content: trimmed }
       ];
 
@@ -544,6 +639,7 @@ export function useChat() {
     activeSessionId,
     createSession,
     createSessionWithDraft,
+    analyzeFileInChat,
     deleteSession,
     setActiveSession,
     renameSession,
@@ -561,5 +657,7 @@ export function useChat() {
     setDraftText,
     reusePromptText,
     appendPromptText,
+    activeAttachedFileId,
+    activeAttachedCsvRows,
   };
 }

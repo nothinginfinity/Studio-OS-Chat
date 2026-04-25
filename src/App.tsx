@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { useChat } from "./hooks/useChat";
 import { useSpaceMailbox } from "./hooks/useSpaceMailbox";
+import { listAllFiles } from "./lib/db";
 
 type Tab = "chats" | "library" | "files" | "spaces" | "settings";
 
@@ -13,6 +14,7 @@ export default function App() {
     activeSessionId,
     createSession,
     createSessionWithDraft,
+    analyzeFileInChat,
     deleteSession,
     setActiveSession,
     renameSession,
@@ -29,12 +31,12 @@ export default function App() {
     draftText,
     setDraftText,
     reusePromptText,
+    activeAttachedFileId,
+    activeAttachedCsvRows,
   } = useChat();
 
   // ---------------------------------------------------------------------------
   // Space mailbox — studio-os-chat ↔ studio-os-spaces
-  // PAT comes from settings.githubPat (GitHubSettings.tsx handles storage).
-  // Polling every 30 s; skipped silently if no PAT is configured yet.
   // ---------------------------------------------------------------------------
   const spaceMailbox = useSpaceMailbox({
     spaceName: "studio-os-chat",
@@ -60,10 +62,28 @@ export default function App() {
     return () => window.removeEventListener("studio:new-chat-from-file", handler);
   }, [createSessionWithDraft]);
 
+  // Task 4.4: Listen for "Analyze in Chat" event dispatched from FilesPanel
+  useEffect(() => {
+    async function handler(e: Event) {
+      const { fileId } = (e as CustomEvent<{ fileId: string }>).detail;
+      if (!fileId) return;
+      // Resolve file name for session title
+      let fileName: string | undefined;
+      try {
+        const files = await listAllFiles();
+        fileName = files.find((f) => f.id === fileId)?.name;
+      } catch {
+        // non-fatal
+      }
+      await analyzeFileInChat(fileId, fileName);
+      setSidebarTab("chats");
+    }
+    window.addEventListener("studio:analyze-file", handler);
+    return () => window.removeEventListener("studio:analyze-file", handler);
+  }, [analyzeFileInChat]);
+
   // ---------------------------------------------------------------------------
   // React to inbound space messages
-  // Any envelope arriving in inbox with body starting "draft:" is auto-loaded
-  // as a chat draft so the user can review and send it.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const latest = spaceMailbox.inbox[0];
@@ -115,12 +135,15 @@ export default function App() {
         onTabChange={setSidebarTab}
         spaceMailbox={spaceMailbox}
       />
+      {/* Task 4.4: pass attachedFileId + csvRows so ChatWindow can render inline charts */}
       <ChatWindow
         messages={messages}
         onSend={sendMessage}
         isLoading={isLoading}
         error={error}
         sessionId={activeSession?.id}
+        attachedFileId={activeAttachedFileId}
+        csvRows={activeAttachedCsvRows}
         draftText={draftText}
         onDraftChange={setDraftText}
       />

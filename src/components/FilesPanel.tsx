@@ -81,9 +81,15 @@ export function FilesPanel() {
   }
 
   function handleNewChatFromFile(_rootId: string, previewText: string, name: string) {
-    // Dispatch to window so App.tsx can pick it up and open a new chat with context
     window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
       detail: { previewText, name }
+    }));
+  }
+
+  // Task 4.4: dispatch studio:analyze-file so App.tsx can call analyzeFileInChat
+  function handleAnalyzeInChat(fileId: string) {
+    window.dispatchEvent(new CustomEvent("studio:analyze-file", {
+      detail: { fileId }
     }));
   }
 
@@ -114,7 +120,7 @@ export function FilesPanel() {
             />
           </div>
           <span className="files-progress-label">
-            {progress.done} / {progress.total} {progress.currentFile}
+            {progress.done} / {progress.total} {progress.currentFile}
           </span>
         </div>
       )}
@@ -158,7 +164,7 @@ export function FilesPanel() {
           {results.map((r) => (
             <div key={r.chunkId} className="files-snippet-card">
               <div className="files-snippet-path">{r.filePath}</div>
-              <div className="files-snippet-score">score {r.score.toFixed(3)}</div>
+              <div className="files-snippet-score">score {r.score.toFixed(3)}</div>
               <pre className="files-snippet-text">{r.snippet}</pre>
             </div>
           ))}
@@ -171,6 +177,7 @@ export function FilesPanel() {
         onReindex={reindexRoot}
         onRemove={removeRoot}
         onNewChatFromFile={handleNewChatFromFile}
+        onAnalyzeInChat={handleAnalyzeInChat}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActionSheetBase } from "./ActionSheetBase";
 import { listFilesByRoot, listChunksByFile } from "../lib/db";
-import type { FileRootRecord } from "../lib/types";
+import type { FileRecord, FileRootRecord } from "../lib/types";
 
 function relativeTime(ts: number | null): string {
   if (!ts) return "Not indexed yet";
@@ -23,29 +23,37 @@ interface Props {
   onReindex: (rootId: string) => void;
   onRemove: (rootId: string) => void;
   onNewChatFromFile: (rootId: string, previewText: string, name: string) => void;
+  /** Task 4.4: called with the CSV FileRecord.id when user taps "Analyze in Chat" */
+  onAnalyzeInChat?: (fileId: string) => void;
 }
 
-export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChatFromFile }: Props) {
+export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChatFromFile, onAnalyzeInChat }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [fileCount, setFileCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // Track the first CSV file found in this root so we can offer Analyze in Chat
+  const [csvFile, setCsvFile] = useState<FileRecord | null>(null);
 
   useEffect(() => {
-    if (!root) { setPreview(null); setFileCount(0); return; }
+    if (!root) { setPreview(null); setFileCount(0); setCsvFile(null); return; }
     setLoading(true);
     setExpanded(false);
     (async () => {
       try {
         const files = await listFilesByRoot(root.id);
         setFileCount(files.length);
-        if (files.length === 0) { setPreview(null); return; }
+        if (files.length === 0) { setPreview(null); setCsvFile(null); return; }
         const chunks = await listChunksByFile(files[0].id);
         const text = chunks.slice(0, 3).map(c => c.text).join("\n\n").trim();
         setPreview(text || null);
+        // Find the first CSV file so we can offer Analyze in Chat
+        const firstCsv = files.find((f) => f.sourceType === "csv") ?? null;
+        setCsvFile(firstCsv);
       } catch {
         setPreview(null);
+        setCsvFile(null);
       } finally {
         setLoading(false);
       }
@@ -73,6 +81,12 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
 
   function handleSummarize() {
     onNewChatFromFile(root!.id, preview ?? "", root!.name);
+    onClose();
+  }
+
+  function handleAnalyzeInChat() {
+    if (!csvFile || !onAnalyzeInChat) return;
+    onAnalyzeInChat(csvFile.id);
     onClose();
   }
 
@@ -134,6 +148,17 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
 
       {/* ── Actions ── */}
       <div className="action-sheet-actions">
+
+        {/* Task 4.4: Analyze in Chat — CSV only */}
+        {csvFile && onAnalyzeInChat && (
+          <button className="action-sheet-btn" onClick={handleAnalyzeInChat}>
+            <span className="action-sheet-btn-icon">🔬</span>
+            <span className="action-sheet-btn-label">
+              <strong>Analyze in Chat</strong>
+              <span className="action-sheet-btn-hint">LLM analysis with full CSV context</span>
+            </span>
+          </button>
+        )}
 
         {preview && (
           <button className="action-sheet-btn" onClick={handleSummarize}>
