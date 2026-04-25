@@ -52,9 +52,9 @@
 | # | Task | Owner | Status |
 |---|------|-------|--------|
 | 2.1 | Pin virtualization vs. pagination decision; update this file | Alice | ✅ Done |
-| 2.2 | Create `src/components/CsvTableView.tsx` — paginated table renderer (100 rows/page, prev/next controls) | Bob | ⬜ Todo |
-| 2.3 | Create `src/components/FileViewer.tsx` — dispatches to `CsvTableView`, `PdfView`, `ImageView` etc. by `sourceType` | Bob | ⬜ Todo |
-| 2.4 | Create `src/components/FileViewerModal.tsx` — full-screen modal shell with toolbar (copy as markdown, open in chat, export CSV) | Bob | ⬜ Todo |
+| 2.2 | Create `src/components/CsvTableView.tsx` — paginated table renderer (100 rows/page, prev/next controls) | Bob | ✅ Done |
+| 2.3 | Create `src/components/FileViewer.tsx` — dispatches to `CsvTableView`, `PdfView`, `ImageView` etc. by `sourceType` | Bob | ✅ Done |
+| 2.4 | Create `src/components/FileViewerModal.tsx` — full-screen modal shell with toolbar (copy as markdown, open in chat, export CSV) | Bob | ✅ Done |
 | 2.5 | Verify: tapping a CSV file opens `FileViewerModal`, table renders, scrolls smoothly on mobile | Alice | ⬜ Todo |
 | 2.6 | Verify: 1000+ row CSV doesn't freeze (pagination confirmed working) | Alice | ⬜ Todo |
 
@@ -153,7 +153,10 @@
 - [2026-04-25] Alice (alice.mmcp) — Task 1.5: Static code review of `csvIngestion.ts`. Verified `detectType` runs heuristic in correct order (date → numeric → boolean → string). Confirmed `nullCount` computed as count of empty-string values after trim, `sample` holds first 5 non-null values. Logic is correct for the reference test CSV (date/number/string/boolean columns with one null in revenue). Expected output matches Bob's spec.
 - [2026-04-25] Alice (alice.mmcp) — Task 1.6: Full audit of `csvIngestion.ts` — zero imports from `openai.ts`, `ollama.ts`, `providers.ts`, or any fetch/XHR. Only imports are `ColumnMeta` and `CsvMeta` type interfaces from `types.ts`. No network call can occur. Confirmed clean.
 - [2026-04-25] Alice (alice.mmcp) — Task 2.1: Pinned slice pagination as Phase 2 approach. Closed B1 and B2. Phase 2 is unblocked.
+- [2026-04-25] Bob (bob.mmcp) — Task 2.2: Created `src/components/CsvTableView.tsx` — paginated table renderer with 100 rows/page, prev/next controls, column meta bar, zebra striping. Props: rows, headers, page, pageSize, onPageChange, csvMeta.
+- [2026-04-25] Bob (bob.mmcp) — Task 2.3: Created `src/components/FileViewer.tsx` — loads chunks from IndexedDB, parses CSV rows in-component, dispatches to CsvTableView (csv), PdfView (pdf), ImageView (ocr/image), PlainTextView (paste/chat-export), UnsupportedView (fallback) by sourceType.
+- [2026-04-25] Bob (bob.mmcp) — Task 2.4: Created `src/components/FileViewerModal.tsx` — full-screen modal shell with header (filename, size, date, row/col counts), toolbar (copy as markdown, open in chat, export CSV), content area rendering FileViewer, Escape-key + backdrop-click close, body scroll lock.
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp)*
+*Last updated: 2026-04-25 by Bob (bob.mmcp)*
