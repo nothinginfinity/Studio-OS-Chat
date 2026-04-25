@@ -1,8 +1,19 @@
 import { useState } from "react";
-import type { ChatMessage } from "../lib/types";
+import type { ChatMessage, ChartSpec } from "../lib/types";
+import { extractChartSpecs } from "../lib/chartSpecParser";
+import { InlineCsvChart } from "./InlineCsvChart";
 
 interface Props {
   messages: ChatMessage[];
+  /** Called when LLM-emitted ChartSpecs are found in an assistant message. */
+  onChartSpecsFound?: (specs: ChartSpec[]) => void;
+  /** CSV rows for the currently attached file — needed to render inline charts. */
+  csvRows?: Record<string, string>[];
+}
+
+/** Strip ```chartspec...``` blocks before markdown rendering so raw JSON is hidden. */
+function stripChartSpecBlocks(text: string): string {
+  return text.replace(/```chartspec[\s\S]*?```/gi, '').trim();
 }
 
 // Lightweight markdown → HTML (no external dependency)
@@ -75,17 +86,39 @@ function ToolPill({ message }: { message: ChatMessage }) {
   );
 }
 
-function AssistantBubble({ message }: { message: ChatMessage }) {
-  const html = renderMarkdown(message.content);
+function AssistantBubble({
+  message,
+  csvRows,
+  onChartSpecsFound,
+}: {
+  message: ChatMessage;
+  csvRows: Record<string, string>[];
+  onChartSpecsFound?: (specs: ChartSpec[]) => void;
+}) {
+  const specs = extractChartSpecs(message.content);
+  if (specs.length > 0) onChartSpecsFound?.(specs);
+
+  const cleaned = stripChartSpecBlocks(message.content);
+  const html = renderMarkdown(cleaned);
+
   return (
-    <div
-      className="message-content md-body"
-      dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
-    />
+    <>
+      <div
+        className="message-content md-body"
+        dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
+      />
+      {specs.length > 0 && csvRows.length > 0 && (
+        <div className="inline-chart-list">
+          {specs.map((spec) => (
+            <InlineCsvChart key={spec.id} spec={spec} rows={csvRows} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
-export function MessageList({ messages }: Props) {
+export function MessageList({ messages, onChartSpecsFound, csvRows = [] }: Props) {
   return (
     <div className="message-list">
       {messages.map((message) => {
@@ -103,7 +136,11 @@ export function MessageList({ messages }: Props) {
             </div>
             {message.role === "assistant" ? (
               <>
-                <AssistantBubble message={message} />
+                <AssistantBubble
+                  message={message}
+                  csvRows={csvRows}
+                  onChartSpecsFound={onChartSpecsFound}
+                />
                 {message.status === "streaming" && (
                   <span className="streaming-cursor">\u258C</span>
                 )}
