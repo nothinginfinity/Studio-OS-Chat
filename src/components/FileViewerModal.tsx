@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { FileRecord, ChartSpec } from "../lib/types";
 import { FileViewer } from "./FileViewer";
+import { ViewerErrorBoundary } from "./ViewerErrorBoundary";
 import { CsvChartPanel } from "./CsvChartPanel";
 import { listChunksByFile } from "../lib/db";
 
@@ -214,7 +215,9 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
 
         {/* ── Content area ── */}
         <div className="fvm-content">
-          <FileViewer file={file} onDataReady={handleDataReady} />
+          <ViewerErrorBoundary>
+            <FileViewer file={file} onDataReady={handleDataReady} />
+          </ViewerErrorBoundary>
           {isCsv && chartSpecs.length > 0 && (
             <CsvChartPanel specs={chartSpecs} rows={csvRows} />
           )}
