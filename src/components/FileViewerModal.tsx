@@ -32,6 +32,23 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // E.5-F1: Capture the element that had focus before the modal opened,
+  // so we can return focus to it when the modal closes.
+  const triggerRef = useRef<Element | null>(null);
+
+  // E.5-F1: On mount — capture trigger, move focus into modal (close button).
+  useEffect(() => {
+    triggerRef.current = document.activeElement;
+    closeBtnRef.current?.focus();
+    return () => {
+      // E.5-F1: On unmount — return focus to the element that opened the modal.
+      if (triggerRef.current && "focus" in triggerRef.current) {
+        (triggerRef.current as HTMLElement).focus();
+      }
+    };
+  }, []);
 
   // Lifted CSV state — populated via FileViewer's onDataReady callback
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
@@ -161,7 +178,13 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
               </span>
             </div>
           </div>
-          <button className="fvm-close-btn" onClick={onClose} aria-label="Close viewer">
+          {/* E.5-F1: ref added so useEffect can programmatically focus this button on mount */}
+          <button
+            ref={closeBtnRef}
+            className="fvm-close-btn"
+            onClick={onClose}
+            aria-label="Close viewer"
+          >
             ✕
           </button>
         </div>

@@ -67,45 +67,61 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
   const virtualItems = virtualizer.getVirtualItems();
 
   return (
-    <div
-      ref={scrollRef}
-      className="csv-table-scroll"
-      style={{ overflowY: "auto", maxHeight: "60vh" }}
-    >
-      <table className="csv-table">
-        <thead>
-          <tr>
-            {headers.map(h => (
-              <th key={h} className="csv-th">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody style={{ height: totalHeight, position: "relative", display: "block" }}>
-          {virtualItems.map(virtualRow => {
-            const row = rows[virtualRow.index];
-            return (
-              <tr
-                key={virtualRow.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                className={virtualRow.index % 2 === 0 ? "csv-tr" : "csv-tr csv-tr--alt"}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                {headers.map(h => (
-                  <td key={h} className="csv-td">{row[h] ?? ""}</td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <>
+      {/* E.1-F2: sr-only accessible summary for AT users — virtual table loses semantic structure
+          due to display:block tbody required by the position-based virtualizer.
+          The paginated path below the threshold is fully accessible. */}
+      <p className="sr-only" role="note">
+        Large dataset: {rows.length.toLocaleString()} rows,{" "}
+        {headers.length} column{headers.length !== 1 ? "s" : ""}.
+        For row-by-row accessible navigation, use datasets under {VIRTUALIZATION_THRESHOLD.toLocaleString()} rows
+        to enable the paginated view.
+      </p>
+
+      {/* E.1-F2: aria-hidden hides the virtual scroll container from AT since
+          display:block on <tbody> breaks table semantics for screen readers. */}
+      <div
+        ref={scrollRef}
+        className="csv-table-scroll"
+        style={{ overflowY: "auto", maxHeight: "60vh" }}
+        aria-hidden="true"
+      >
+        <table className="csv-table">
+          <thead>
+            <tr>
+              {/* E.1-F1: scope="col" added — associates each header with its column for AT */}
+              {headers.map(h => (
+                <th key={h} className="csv-th" scope="col">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody style={{ height: totalHeight, position: "relative", display: "block" }}>
+            {virtualItems.map(virtualRow => {
+              const row = rows[virtualRow.index];
+              return (
+                <tr
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  className={virtualRow.index % 2 === 0 ? "csv-tr" : "csv-tr csv-tr--alt"}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {headers.map(h => (
+                    <td key={h} className="csv-td">{row[h] ?? ""}</td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -131,8 +147,9 @@ function PaginatedTable({
         <table className="csv-table">
           <thead>
             <tr>
+              {/* E.1-F1: scope="col" added — associates each header with its column for AT */}
               {headers.map(h => (
-                <th key={h} className="csv-th">{h}</th>
+                <th key={h} className="csv-th" scope="col">{h}</th>
               ))}
             </tr>
           </thead>

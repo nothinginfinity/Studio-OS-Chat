@@ -57,7 +57,11 @@ function AttachedFileBadge({ fileName, onDismiss }: BadgeProps) {
           aria-label="Detach file"
           type="button"
         >
-          ✕
+          {/* E.2-F1: sr-only text matches aria-label — fixes 2.5.3 Label in Name.
+              The visible ✕ symbol is aria-hidden; the accessible name is "Detach file"
+              which now also appears as visually-hidden text for sighted AT users. */}
+          <span aria-hidden="true">✕</span>
+          <span className="sr-only">Detach file</span>
         </button>
       )}
     </div>
