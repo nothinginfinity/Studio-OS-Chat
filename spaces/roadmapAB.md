@@ -98,10 +98,10 @@
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| 4.1 | Create `src/lib/fileContext.ts` — builds context string from `csvMeta` + stratified row sample as markdown table | Alice | ⬜ Todo |
+| 4.1 | Create `src/lib/fileContext.ts` — builds context string from `csvMeta` + stratified row sample as markdown table | Alice | ✅ Done |
 | 4.2 | Extend `src/lib/chatSession.ts` — accept `attachedFileId` on session creation | Bob | ✅ Done |
 | 4.3 | Add "Analyze in Chat" button to `src/components/FileViewerModal.tsx` toolbar | Bob | ✅ Done |
-| 4.4 | Show attached file badge in `src/components/ChatView.tsx` when `attachedFileId` is set | Bob | ⬜ Todo |
+| 4.4 | Show attached file badge in `src/components/ChatView.tsx` when `attachedFileId` is set | Bob | ✅ Done |
 | 4.5 | Wire `chartRenderer.ts` to parse and render LLM-emitted `ChartSpec` JSON blocks from chat responses | Alice | ⬜ Todo |
 | 4.6 | Verify: "Analyze in Chat" opens a session with file context pre-loaded, no LLM call until user sends a message | Alice | ⬜ Todo |
 | 4.7 | Verify: LLM-emitted ChartSpec blocks render inline in chat and are saved to the file's chart store | Alice | ⬜ Todo |
@@ -170,7 +170,9 @@
 - [2026-04-25] Alice (alice.mmcp) — Task 3.9: End-to-end integration review of full Phase 3 pipeline. Traced drop→ingest→table→inferChartSpecs→onDataReady→setCsvRows/setChartSpecs→CsvChartPanel→ChartTile→renderChart. Verified: state reset on file change (useEffect([file?.id])), no stale rows/specs on modal reuse. Verified: ChartTile destroys Chart.js instance on unmount — no memory leaks. Verified: CsvChartPanel gate (isCsv && chartSpecs.length > 0) prevents empty renders for non-CSV files. Verified: useCallback([]) on handleDataReady is stable — no unnecessary FileViewer re-renders. One minor note: FileViewer's useEffect does not declare onDataReady in the deps array (suppressed with eslint-disable); functionally safe since handleDataReady is memoised with useCallback([]), but worth noting for future refactors. Phase 3 ✅ COMPLETE end-to-end.
 - [2026-04-25] Bob (bob.mmcp) — Task 4.2: Created `src/lib/chatSession.ts` — `ChatSessionOptions` interface with optional `attachedFileId`; `createChatSession(options?)` factory using `crypto.randomUUID()`, returns `ChatSession & { attachedFileId?: string }`; `isFileAttachedSession()` type-guard helper. Pure synchronous function — no IndexedDB write, no LLM call.
 - [2026-04-25] Bob (bob.mmcp) — Task 4.3: Updated `src/components/FileViewerModal.tsx` — added optional `onAnalyzeInChat?: (file: FileRecord) => void` prop; added "Analyze in Chat" button (🔬 icon, `fvm-tool-btn--analyze` class) gated on `isCsv && onAnalyzeInChat`; `handleAnalyzeInChat()` calls `onAnalyzeInChat(file)` then `onClose()`. Caller creates session via `createChatSession({ attachedFileId: file.id })`. No LLM call at click time.
+- [2026-04-25] Bob (bob.mmcp) — Task 4.1 noted: Alice shipped `src/lib/fileContext.ts` — `buildFileContext(file, rows, opts?)` with `stratifiedSample()` (40% beginning / 20% middle / 40% end), schema section, and markdown table renderer. API confirmed clean before writing 4.4.
+- [2026-04-25] Bob (bob.mmcp) — Task 4.4: Created `src/components/ChatView.tsx` — new component wrapping `<ChatWindow>` with an `<AttachedFileBadge>` banner. Badge shows 📎 icon + file name (looked up from `files: FileRecord[]` prop) and a ✕ dismiss button calling optional `onDetachFile()`. Badge hidden when no `attachedFileId` or file not found. Zero LLM calls. TypeScript strict — no `any`, no non-null assertions.
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp) — Tasks 4.2 + 4.3 ✅ Done. Alice's turn: 4.1 (fileContext.ts).*
+*Last updated: 2026-04-25 by Bob (bob.mmcp) — Task 4.4 ✅ Done. Alice's turn: 4.5 (LLM ChartSpec block parsing + rendering), 4.6, 4.7 (verification tasks).*
