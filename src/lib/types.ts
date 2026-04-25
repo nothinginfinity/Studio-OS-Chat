@@ -1,7 +1,7 @@
 export type Role = "system" | "user" | "assistant" | "tool";
 export type MessageStatus = "complete" | "streaming" | "error";
 
-export type SourceType = "file" | "ocr" | "pdf" | "paste" | "chat-export";
+export type SourceType = "file" | "ocr" | "pdf" | "paste" | "chat-export" | "csv";
 export type OCRMode = "screenshot" | "document" | "code" | "receipt";
 
 export type PromptScore = 1 | 2 | 3 | 4 | 5;
@@ -20,6 +20,20 @@ export interface ToolCall {
     name: string;
     arguments: Record<string, unknown>;
   };
+}
+
+// ── CSV ingestion types ───────────────────────────────────────────────────────
+
+export interface ColumnMeta {
+  name: string;
+  type: 'number' | 'date' | 'string' | 'boolean';
+  nullCount: number;
+  sample: string[];
+}
+
+export interface CsvMeta {
+  columns: ColumnMeta[];
+  rowCount: number;
 }
 
 // ── Chat (in-memory / React state) ───────────────────────────────────────────
@@ -213,6 +227,7 @@ export interface FileRecord {
   ocrMode?: OCRMode;
   ingestedAt: number;
   sourceFileId?: string;
+  csvMeta?: CsvMeta;
 }
 
 export interface ChunkRecord {

@@ -1,5 +1,6 @@
 /**
- * fileParsers.ts — v4
+ * fileParsers.ts — v5
+ * Phase 1: added CSV routing case + isCsvFile predicate
  */
 
 const TEXT_EXTENSIONS = new Set([
@@ -7,11 +8,12 @@ const TEXT_EXTENSIONS = new Set([
   ".js", ".ts", ".tsx", ".jsx",
   ".html", ".css",
   ".yml", ".yaml",
-  ".csv",
   ".py",
   ".java", ".go", ".rs",
   ".sh"
 ]);
+
+const CSV_EXTENSIONS = new Set([".csv"]);
 
 const PDF_EXTENSIONS = new Set([".pdf"]);
 
@@ -23,13 +25,11 @@ const MAX_TEXT_BYTES   = 3  * 1024 * 1024;
 const MAX_BINARY_BYTES = 50 * 1024 * 1024;
 
 // ── CDN dynamic import helper ─────────────────────────────────────────────────
-// Function constructor makes TSC fully blind to the import() call —
-// it never tries to resolve the CDN URL as a module specifier.
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
 const cdnImport = new Function("url", "return import(url)") as
   (url: string) => Promise<Record<string, unknown>>;
 
-// ── Public predicates ───────────────────────────────────────────────────────────────
+// ── Public predicates ────────────────────────────────────────────────────────
 
 export function fileExt(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -38,6 +38,10 @@ export function fileExt(name: string): string {
 
 export function isTextFile(name: string): boolean {
   return TEXT_EXTENSIONS.has(fileExt(name));
+}
+
+export function isCsvFile(name: string): boolean {
+  return CSV_EXTENSIONS.has(fileExt(name));
 }
 
 export function isPdfFile(name: string): boolean {
@@ -49,10 +53,10 @@ export function isImageFile(name: string): boolean {
 }
 
 export function isSupportedFile(name: string): boolean {
-  return isTextFile(name) || isPdfFile(name) || isImageFile(name);
+  return isTextFile(name) || isCsvFile(name) || isPdfFile(name) || isImageFile(name);
 }
 
-// ── Text parser ──────────────────────────────────────────────────────────────────
+// ── Text parser ──────────────────────────────────────────────────────────────
 
 export async function readSupportedFile(file: File): Promise<string | null> {
   if (!isTextFile(file.name)) return null;
@@ -69,7 +73,7 @@ export async function readSupportedFile(file: File): Promise<string | null> {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-// ── PDF parser (PDF.js via cdnjs CDN) ───────────────────────────────────────────
+// ── PDF parser (PDF.js via cdnjs CDN) ────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PdfjsLib = any;
@@ -86,8 +90,6 @@ async function getPdfjsLib(): Promise<PdfjsLib> {
     return _pdfjsCache;
   }
 
-  // cdnImport uses Function constructor — TSC never sees this import() call
-  // and cannot attempt to resolve the URL as a module specifier.
   const mod: PdfjsLib = await cdnImport(
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs"
   );
