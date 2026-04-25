@@ -1,9 +1,13 @@
 /**
- * csvIngestion.ts — Phase 1
+ * csvIngestion.ts — Phase 1 (patched A.3: BOM strip + multiline field support)
  * Parses a .csv File into structured records, detects column types,
  * and stores rows as IndexedDB chunks. No LLM call at any point.
  *
  * Column type heuristic order: date → numeric → boolean → string
+ *
+ * A.3 changes:
+ *  1. Strip UTF-8 BOM (\uFEFF) from raw text before processing
+ *  2. Re-join quoted multiline fields that were split by the \n splitter
  */
 
 import type { ColumnMeta, CsvMeta } from './types';
@@ -47,10 +51,72 @@ function detectType(nonNullValues: string[]): ColumnMeta['type'] {
   return 'string';
 }
 
+// ── CSV line re-joiner (A.3: multiline field support) ────────────────────────
+
+/**
+ * Takes the array of raw lines (after CRLF normalisation) and re-joins any
+ * lines that are continuations of a quoted field spanning multiple lines.
+ *
+ * A continuation is detected by counting unescaped double-quote characters:
+ * if the running total is odd after a line ends, the next line is a
+ * continuation of the current field.
+ */
+export function rejoinMultilineFields(lines: string[]): string[] {
+  const result: string[] = [];
+  let buffer: string | null = null;
+
+  for (const line of lines) {
+    if (buffer === null) {
+      // Count quotes in this line
+      const quoteCount = countUnescapedQuotes(line);
+      if (quoteCount % 2 === 1) {
+        // Odd number of quotes → field continues on next line
+        buffer = line;
+      } else {
+        result.push(line);
+      }
+    } else {
+      // We are inside a multiline field — append with the newline that was stripped
+      buffer = buffer + '\n' + line;
+      const quoteCount = countUnescapedQuotes(buffer);
+      if (quoteCount % 2 === 0) {
+        // Even quote count → field is now closed
+        result.push(buffer);
+        buffer = null;
+      }
+      // else: still open, keep accumulating
+    }
+  }
+
+  // If file ends mid-field, push whatever we have
+  if (buffer !== null) {
+    result.push(buffer);
+  }
+
+  return result;
+}
+
+/**
+ * Count double-quote characters in a string, skipping escaped pairs ("").
+ */
+function countUnescapedQuotes(s: string): number {
+  let count = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '"') {
+      if (s[i + 1] === '"') {
+        i++; // skip escape pair
+      } else {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
 // ── CSV line parser ──────────────────────────────────────────────────────────
 
 /** RFC 4180-compatible: handles quoted fields with embedded commas/newlines. */
-function parseRow(line: string): string[] {
+export function parseRow(line: string): string[] {
   const fields: string[] = [];
   let inQuotes = false;
   let field = '';
@@ -89,6 +155,8 @@ export interface CsvParseResult {
  * Parse a File object as CSV.
  * Returns null if the file is too large, empty, or cannot be read.
  * No network or LLM calls are made.
+ *
+ * A.3: strips UTF-8 BOM, re-joins multiline quoted fields before line split.
  */
 export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
   if (file.size > MAX_CSV_BYTES) {
@@ -96,8 +164,19 @@ export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
     return null;
   }
 
-  const raw = await file.text();
-  const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  let raw = await file.text();
+
+  // A.3 fix 1: Strip UTF-8 BOM if present
+  if (raw.charCodeAt(0) === 0xFEFF) {
+    raw = raw.slice(1);
+  }
+
+  // Normalise line endings
+  const normalised = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const splitLines = normalised.split('\n');
+
+  // A.3 fix 2: Re-join lines that are continuations of multiline quoted fields
+  const lines = rejoinMultilineFields(splitLines);
 
   // Filter completely empty trailing lines
   const nonEmpty = lines.filter(l => l.trim() !== '');
