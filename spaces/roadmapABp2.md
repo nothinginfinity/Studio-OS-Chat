@@ -67,15 +67,17 @@
 |---|------|-------|--------|
 | A.1 | Audit `csvIngestion.ts` row parser; document all known failure cases (quoted commas, escaped quotes, multiline fields) | Bob | ✅ |
 | A.2 | Decision: implement a state-machine tokenizer in-house OR adopt Papa Parse — document choice with rationale | Bob | ✅ |
-| A.3 | Implement chosen RFC 4180 solution; patch BOM strip + multiline field support in `csvIngestion.ts` | Bob | ☐ |
-| A.4 | Add unit tests: quoted fields with commas, double-quote escaping, trailing newline edge cases | Bob | ☐ |
-| A.5 | Verify: `"Smith, John","123 Main St, Apt 4"` parses to 2 columns, not 4+ | Alice | ☐ |
-| A.6 | Verify: existing Phase 1–5 behaviour unchanged (column type detection, nullCount, sample, IndexedDB storage) | Alice | ☐ |
+| A.3 | Implement chosen RFC 4180 solution; patch BOM strip + multiline field support in `csvIngestion.ts` | Bob | ✅ |
+| A.4 | Add unit tests: quoted fields with commas, double-quote escaping, trailing newline edge cases | Bob | ✅ |
+| A.5 | Verify: `"Smith, John","123 Main St, Apt 4"` parses to 2 columns, not 4+ | Alice | ✅ |
+| A.6 | Verify: existing Phase 1–5 behaviour unchanged (column type detection, nullCount, sample, IndexedDB storage) | Bob (delegated by Alice) | ✅ |
+
+> **A.6 Finding:** Regression detected and fixed. `FileViewer.tsx` was reconstructing CSV rows from `chunkText` using `line.split(",")` — but `chunkText` has been tab-separated (`\t`) since Phase 1. This was a latent bug (Alice flagged it in A.5 message) that A.3's confirmed tab-separation made explicit. Fixed in this commit: `line.split(",")` → `line.split("\t")`. All Phase 1–5 acceptance criteria (column type detection, nullCount, sample values, IndexedDB storage, chunkText format) verified correct against current source.
 
 **Track A acceptance criteria:**
-- [ ] Quoted fields containing commas parse correctly
-- [ ] Escaped double-quotes (`""`) inside quoted fields parse correctly
-- [ ] All Phase 1 acceptance criteria still pass after parser replacement
+- [x] Quoted fields containing commas parse correctly
+- [x] Escaped double-quotes (`""`) inside quoted fields parse correctly
+- [x] All Phase 1 acceptance criteria still pass after parser replacement
 
 ---
 
@@ -154,7 +156,10 @@
 - [2026-04-25] Bob (bob.mmcp) — A.1: audited csvIngestion.ts; parseRow() confirmed RFC 4180 state-machine (no split(',') in parse path). Two edge cases documented: multiline fields, BOM stripping.
 - [2026-04-25] Bob (bob.mmcp) — A.2: decision — in-house patch (Papa Parse rejected). ~10-line fix for BOM + multiline. Awaiting Track C clearance.
 - [2026-04-25] Alice (alice.mmcp) — C.1–C.8: static code audit complete. All pipelines verified correct. No runtime blockers. Track A unblocked.
+- [2026-04-25] Bob (bob.mmcp) — A.3 + A.4: csvIngestion.ts patched (BOM strip + multiline rejoin); 25-test Vitest suite committed.
+- [2026-04-25] Alice (alice.mmcp) — A.5: all 25 tests verified PASS. Track A.6 delegated to Bob.
+- [2026-04-25] Bob (bob.mmcp) — A.6: Phase 1–5 regression audit complete. Found + fixed latent bug: FileViewer.tsx line.split(",") → line.split("\t") (chunkText is tab-separated). All acceptance criteria verified. Track A COMPLETE ✅.
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp) — Track C complete (C.1–C.8). No blockers. Track A (A.3, A.4) unblocked for Bob.*
+*Last updated: 2026-04-25 by Bob (bob.mmcp) — Track A COMPLETE ✅. All 6 tasks done. FileViewer.tsx split regression fixed. Track B is next (Alice owns B.1).*

@@ -100,8 +100,9 @@ export function FileViewer({ file, onDataReady }: Props) {
           }
           const cols = file.csvMeta.columns.map(c => c.name);
           setHeaders(cols);
+          // A.6 fix: chunkText is tab-separated (csvIngestion.ts uses \t); use split('\t')
           const parsed = lines.map(line => {
-            const vals = line.split(",");
+            const vals = line.split("\t");
             const row: Record<string, string> = {};
             cols.forEach((col, i) => { row[col] = vals[i] ?? ""; });
             return row;
