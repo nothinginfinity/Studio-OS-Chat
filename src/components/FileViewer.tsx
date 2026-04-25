@@ -3,6 +3,7 @@ import type { FileRecord, ChartSpec } from "../lib/types";
 import { listChunksByFile } from "../lib/db";
 import { CsvTableView } from "./CsvTableView";
 import { JsonTreeView } from "./JsonTreeView";
+import { MarkdownView } from "./MarkdownView";
 import { inferChartSpecs } from "../lib/chartTemplates";
 
 const PAGE_SIZE = 100;
@@ -13,7 +14,7 @@ interface Props {
   onDataReady?: (rows: Record<string, string>[], specs: ChartSpec[]) => void;
 }
 
-// ── Viewer stubs / sub-components ─────────────────────────────────────────────
+// ── Viewer sub-components ─────────────────────────────────────────────────────
 
 function PdfView({ text }: { text: string }) {
   return (
@@ -41,23 +42,30 @@ function PlainTextView({ text }: { text: string }) {
   );
 }
 
-// Phase 5: MarkdownView stub — Alice owns task 5.1
-// This placeholder renders plain text until Alice ships MarkdownView.tsx.
-function MarkdownViewStub({ text }: { text: string }) {
-  return (
-    <div className="fv-text-view">
-      <pre className="fv-pre">{text}</pre>
-    </div>
-  );
-}
+// Task 5.4: Richer unsupported-type fallback
+const SUPPORTED_EXTENSIONS = [
+  "csv", "pdf", "json",
+  "md", "txt",
+  "png", "jpg", "jpeg", "gif", "webp", "bmp",
+];
 
-// Phase 5: Unsupported fallback — Alice will replace with richer message in 5.4
 function UnsupportedView({ file }: { file: FileRecord }) {
+  const ext = file.ext?.toLowerCase() ?? "";
+  const extLabel = ext ? `.${ext}` : "unknown";
   return (
     <div className="fv-unsupported">
-      <span className="fv-unsupported-icon">📄</span>
-      <p>This file type is not yet supported in the viewer.</p>
+      <span className="fv-unsupported-icon">🚫</span>
+      <p className="fv-unsupported-title">File type not supported</p>
       <p className="fv-unsupported-name">{file.name}</p>
+      <p className="fv-unsupported-detail">
+        <strong>{extLabel}</strong> files cannot be previewed in this viewer.
+      </p>
+      <p className="fv-unsupported-hint">
+        Supported types:{" "}
+        {SUPPORTED_EXTENSIONS.map(e => (
+          <code key={e} className="fv-unsupported-ext">.{e}</code>
+        ))}
+      </p>
     </div>
   );
 }
@@ -154,8 +162,7 @@ export function FileViewer({ file, onDataReady }: Props) {
         return <JsonTreeView raw={textContent} />;
       }
       if (ext === "md" || ext === "txt") {
-        // Alice will replace MarkdownViewStub with MarkdownView in task 5.1
-        return <MarkdownViewStub text={textContent} />;
+        return <MarkdownView text={textContent} />;
       }
       return <PlainTextView text={textContent} />;
     }
