@@ -14,7 +14,8 @@
     "react-dom": "^18.3.1",
     "chart.js": "^4.4.3",
     "chartjs-adapter-date-fns": "^3.0.0",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "@tanstack/react-virtual": "^3.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
