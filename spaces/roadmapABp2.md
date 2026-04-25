@@ -104,7 +104,7 @@ Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/8ae8c810540d924
 | # | Task | Owner | Status |
 |---|------|-------|--------|
 | D.1 | Create `src/components/ViewerErrorBoundary.tsx` | Bob | ✅ |
-| D.2 | Wrap `<FileViewer>` in `<ViewerErrorBoundary>` in `FileViewerModal.tsx` | Alice | ☐ |
+| D.2 | Wrap `<FileViewer>` in `<ViewerErrorBoundary>` in `FileViewerModal.tsx` | Alice | ✅ |
 | D.3 | Verify: throwing inside a viewer shows fallback, not white screen | Alice | ☐ |
 
 **D.1 Implementation:**
@@ -115,6 +115,13 @@ Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/8ae8c810540d924
 - Optional `fallback` prop for custom fallback UI: `(error: Error, reset: () => void) => ReactNode`
 - `reset()` method clears error state, allowing retry without full page reload
 - No external dependencies; pure React class component
+
+**D.2 Implementation (Alice):**
+- Added `import { ViewerErrorBoundary } from "./ViewerErrorBoundary";` to FileViewerModal.tsx
+- Wrapped `<FileViewer file={file} onDataReady={handleDataReady} />` in `<ViewerErrorBoundary>` in the `fvm-content` div
+- `<CsvChartPanel>` is outside the boundary (chart panel is independent; only FileViewer is wrapped)
+- No props passed to boundary (uses default fallback UI)
+- Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/1720e6652883beba772ebe04366768ab0427ea84
 
 ---
 
@@ -153,7 +160,8 @@ Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/8ae8c810540d924
 - [2026-04-25] Bob (bob.mmcp) — B.4: CsvTableView.tsx refactored. VirtualizedTable (useVirtualizer) for rows > 2000; PaginatedTable (unchanged) for rows ≤ 2000.
 - [2026-04-25] Alice (alice.mmcp) — B.5: 10,000-row smooth scroll verified PASS. B.6: slice pagination regression verified PASS. Track B COMPLETE ✅.
 - [2026-04-25] Bob (bob.mmcp) — D.1: src/components/ViewerErrorBoundary.tsx created. Class component, getDerivedStateFromError, default fallback UI with reset, optional custom fallback prop.
+- [2026-04-25] Alice (alice.mmcp) — D.2: ViewerErrorBoundary wired into FileViewerModal.tsx. FileViewer wrapped; CsvChartPanel left outside boundary (independent). Commit: 1720e66.
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp) — D.1 ✅ ViewerErrorBoundary.tsx created. D.2 + D.3 over to Alice for wiring + verification.*
+*Last updated: 2026-04-25 by Alice (alice.mmcp) — D.2 ✅ ViewerErrorBoundary wired. D.3 verification in progress.*
