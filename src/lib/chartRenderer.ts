@@ -12,6 +12,7 @@ import {
   PointElement, LineElement, BarElement, ArcElement,
   Tooltip, Legend,
   ChartConfiguration,
+  ChartTypeRegistry,
 } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import { ChartSpec } from './types';
@@ -71,7 +72,7 @@ export function renderChart(
   return new Chart(canvas, config);
 }
 
-// ── Config builders ───────────────────────────────────────────────────────────
+// ── Config builders —————————————————————————————————————————————————————
 
 function buildConfig(
   spec: ChartSpec,
@@ -83,6 +84,24 @@ function buildConfig(
     case 'pie':     return buildPieConfig(spec, rows);
     case 'scatter': return buildScatterConfig(spec, rows);
   }
+}
+
+/**
+ * Returns base chart options typed to a specific chart type T.
+ * Using a generic avoids the TS2322 "radialLinear scale" error that occurs
+ * when the broad ChartConfiguration union is assigned to a typed config.
+ */
+function baseOptions<T extends keyof ChartTypeRegistry>(
+  title: string,
+): ChartConfiguration<T>['options'] {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      title:  { display: true, text: title },
+      legend: { position: 'top' },
+    },
+  } as ChartConfiguration<T>['options'];
 }
 
 function buildLineConfig(
@@ -104,7 +123,7 @@ function buildLineConfig(
   return {
     type: 'line',
     data: { labels, datasets },
-    options: baseOptions(spec.title),
+    options: baseOptions<'line'>(spec.title),
   };
 }
 
@@ -131,7 +150,7 @@ function buildBarConfig(
         backgroundColor: labels.map((_, i) => colour(i)),
       }],
     },
-    options: baseOptions(spec.title),
+    options: baseOptions<'bar'>(spec.title),
   };
 }
 
@@ -187,22 +206,11 @@ function buildScatterConfig(
       }],
     },
     options: {
-      ...baseOptions(spec.title),
+      ...baseOptions<'scatter'>(spec.title),
       scales: {
         x: { title: { display: true, text: spec.xKey } },
         y: { title: { display: true, text: spec.yKeys[0] } },
       },
     } as ChartConfiguration<'scatter'>['options'],
-  };
-}
-
-function baseOptions(title: string): ChartConfiguration['options'] {
-  return {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      title:  { display: true, text: title },
-      legend: { position: 'top' },
-    },
   };
 }

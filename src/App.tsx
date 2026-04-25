@@ -38,7 +38,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
   const spaceMailbox = useSpaceMailbox({
     spaceName: "studio-os-chat",
-    pat: (settings as Record<string, string>).githubPat ?? "",
+    pat: (settings as unknown as Record<string, string>).githubPat ?? "",
     pollIntervalMs: 30_000,
   });
 
@@ -78,7 +78,7 @@ export default function App() {
   if (!dbReady) {
     return (
       <div className="app-loading">
-        <span>Loading…</span>
+        <span>Loading\u2026</span>
       </div>
     );
   }
@@ -86,10 +86,10 @@ export default function App() {
   if (dbError) {
     return (
       <div className="app-loading" style={{ flexDirection: "column", gap: "12px", padding: "24px", textAlign: "center" }}>
-        <span style={{ fontSize: "18px" }}>⚠️ Database error</span>
+        <span style={{ fontSize: "18px" }}>\u26a0\ufe0f Database error</span>
         <span style={{ fontSize: "13px", color: "#e08080", maxWidth: "480px" }}>{dbError}</span>
         <span style={{ fontSize: "12px", color: "#666" }}>
-          Try clearing site data: Settings → Privacy → Clear browsing data → Cached images and files + Cookies.
+          Try clearing site data: Settings \u2192 Privacy \u2192 Clear browsing data \u2192 Cached images and files + Cookies.
         </span>
       </div>
     );
