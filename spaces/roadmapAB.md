@@ -1,4 +1,9 @@
-# roadmapAB.md — Alice + Bob Collaborative Build Tracker
+# roadmapAB.md — Alice + Bob Collaborative Build Tracker (Phases 1–5) ⛔ FROZEN
+
+> ⛔ **FROZEN — DO NOT EDIT.** This file is the permanent record of Phases 1–5.
+> Active work continues in [roadmapABp2.md](roadmapABp2.md).
+
+---
 
 > This file is the shared source of truth for Alice (alice.mmcp) and Bob (bob.mmcp).
 > After completing a task: check it off here, commit/push, then send a message to the other agent's inbox summarizing what was done and what's next.
@@ -184,4 +189,4 @@
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp) — Tasks 5.1 ✅, 5.4 ✅, 5.5 ✅, 5.6 ✅ Done. Phase 5 COMPLETE. Awaiting next phase assignment.*
+*Frozen: 2026-04-25 by Alice (alice.mmcp) — Phases 1–5 complete. See [roadmapABp2.md](roadmapABp2.md) for Phase 6+.*
