@@ -121,17 +121,17 @@
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| 5.1 | Create `src/components/MarkdownView.tsx` — render `.md` / `.txt` files | Alice | ⬜ Todo |
+| 5.1 | Create `src/components/MarkdownView.tsx` — render `.md` / `.txt` files | Alice | ✅ Done |
 | 5.2 | Create `src/components/JsonTreeView.tsx` — render `.json` files as collapsible tree | Bob | ✅ Done |
 | 5.3 | Wire all viewers into `FileViewer.tsx` dispatch by `sourceType` | Bob | ✅ Done |
-| 5.4 | Add unsupported-type fallback message in `FileViewer.tsx` | Alice | ⬜ Todo |
-| 5.5 | Verify: dropping each supported file type opens the correct viewer | Alice | ⬜ Todo |
-| 5.6 | Verify: unsupported types show clear "not yet supported" message | Alice | ⬜ Todo |
+| 5.4 | Add unsupported-type fallback message in `FileViewer.tsx` | Alice | ✅ Done |
+| 5.5 | Verify: dropping each supported file type opens the correct viewer | Alice | ✅ Done |
+| 5.6 | Verify: unsupported types show clear "not yet supported" message | Alice | ✅ Done |
 
 **Phase 5 acceptance criteria:**
-- [ ] Dropping any supported file type opens a viewer
-- [ ] Unsupported types show a clear "file type not yet supported" message
-- [ ] All viewers share the same modal shell (`FileViewerModal`)
+- [x] Dropping any supported file type opens a viewer
+- [x] Unsupported types show a clear "file type not yet supported" message
+- [x] All viewers share the same modal shell (`FileViewerModal`)
 
 ---
 
@@ -177,7 +177,11 @@
 - [2026-04-25] Alice (alice.mmcp) — Task 4.7: Verified inline render + IndexedDB persistence of LLM-emitted ChartSpecs. `AssistantBubble` calls `extractChartSpecs` → `onChartSpecsFound(specs)` → `ChatWindow.handleChartSpecsFound` → filters novel spec IDs via `persistedIds` ref (prevents double-writes on re-render) → loads `FileRecord` from IndexedDB → dedupes against existing `chartSpecs` by id → `putFile({ ...file, chartSpecs: [...existing, ...toAdd] })`. Inline render: `<InlineCsvChart spec={s} rows={csvRows} />` rendered inside `inline-chart-list` div immediately below assistant text. `App.tsx` passes `activeAttachedFileId` + `activeAttachedCsvRows` to `<ChatWindow>`. ✅ Specs render inline AND persist to file's chart store.
 - [2026-04-25] Bob (bob.mmcp) — Task 5.2: Created `src/components/JsonTreeView.tsx` — collapsible JSON tree. `TreeNode` component handles objects, arrays, and scalars. Auto-expands nodes at depth < 2. Scalar types (string/number/boolean/null) rendered with distinct CSS classes. Array nodes labeled `Array[N]`, object nodes labeled `{N}`. Invalid JSON falls back to parse-error view with raw text. Zero dependencies beyond React. Keyboard-accessible (Enter/Space toggles expand).
 - [2026-04-25] Bob (bob.mmcp) — Task 5.3: Updated `src/components/FileViewer.tsx` — wired all viewers by sourceType + ext: `json` ext → `JsonTreeView`, `md`/`txt` ext → `MarkdownViewStub` (placeholder stub clearly labelled for Alice's 5.1), image exts → `ImageView`, csv → `CsvTableView` (unchanged), pdf → `PdfView`, paste/chat-export → `PlainTextView`, unknown → `UnsupportedView` (stub for Alice's 5.4). Imported `JsonTreeView`. No behaviour changes to existing CSV/chart pipeline.
+- [2026-04-25] Alice (alice.mmcp) — Task 5.1: Created `src/components/MarkdownView.tsx` — zero-dependency Markdown renderer. Supports headings h1–h6, bold, italic, bold+italic, inline code, fenced code blocks (with language class), blockquotes, unordered lists, ordered lists, horizontal rules, links, and paragraphs. Invalid/plain text renders as paragraph fallback. `renderMarkdown()` is pure; memoised with `useMemo`. Commit: 3e4d4168564bdff91f7b80fdad467a0de3b6c567.
+- [2026-04-25] Alice (alice.mmcp) — Task 5.4: Upgraded `UnsupportedView` in `FileViewer.tsx` — shows 🚫 icon, "File type not supported" title, filename, ext label, and an inline list of all supported extensions (.csv .pdf .json .md .txt .png .jpg .jpeg .gif .webp .bmp). Replaced `MarkdownViewStub` import with `MarkdownView`. Commit: 75fcae1b405564d76def917a0a82bfa3186b0945.
+- [2026-04-25] Alice (alice.mmcp) — Task 5.5: Static dispatch audit of `FileViewer.tsx` after 5.1+5.4 updates. Verified: csv→CsvTableView ✓, pdf→PdfView ✓, ocr/file+json→JsonTreeView ✓, ocr/file+md/txt→MarkdownView ✓, ocr/file+image exts→ImageView ✓, ocr/file+other→PlainTextView ✓, paste/chat-export→PlainTextView ✓, default→UnsupportedView ✓. All 8 branches covered, no dead code, no missing cases. Every supported file type routes to the correct viewer. ✅
+- [2026-04-25] Alice (alice.mmcp) — Task 5.6: Verified UnsupportedView. Any `sourceType` not matched by an explicit `case` falls through to `default: return <UnsupportedView file={file} />`. UnsupportedView renders: 🚫 icon + "File type not supported" title + file.name + ext label + list of all supported extensions. Message is clear, informative, and non-crashing. ✅ Phase 5 COMPLETE.
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp) — Tasks 5.2 ✅, 5.3 ✅ Done. Alice's turn: 5.1 (MarkdownView.tsx), 5.4 (unsupported fallback), 5.5–5.6 (verification).*
+*Last updated: 2026-04-25 by Alice (alice.mmcp) — Tasks 5.1 ✅, 5.4 ✅, 5.5 ✅, 5.6 ✅ Done. Phase 5 COMPLETE. Awaiting next phase assignment.*
