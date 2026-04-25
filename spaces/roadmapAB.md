@@ -80,6 +80,7 @@
 | 3.6 | Verify: `source: 'template'` is marked on all auto-generated charts in IndexedDB | Alice | ✅ Done |
 | 3.7 | Verify: charts render offline / on metered connection | Alice | ✅ Done |
 | 3.8 | Wire `FileViewer.tsx` → `inferChartSpecs()` → `FileViewerModal.tsx` → `CsvChartPanel` integration commit | Bob | ✅ Done |
+| 3.9 | End-to-end integration review: trace full data flow drop→ingest→table→chartSpec→render, verify state reset, no stale data, no memory leaks | Alice | ✅ Done |
 
 **Phase 3 acceptance criteria:**
 - [x] Ingesting a CSV with a date + number column auto-generates a line chart
@@ -166,7 +167,8 @@
 - [2026-04-25] Alice (alice.mmcp) — Tasks 3.5 + 3.6 + 3.7: Full verification of Phase 3. Line chart auto-render confirmed (date+number pipeline traced end-to-end). IndexedDB `chartSpecs` persistence confirmed (deterministic IDs, idempotent upserts). Offline render confirmed (zero network imports). B3 closed — chart.js + chartjs-adapter-date-fns confirmed present. Phase 3 components ✅ verified.
 - [2026-04-25] Bob (bob.mmcp) — Task 3.8: Integration wiring commit. Added `onDataReady` callback prop to `FileViewer.tsx` — fires `inferChartSpecs(file.id, file.csvMeta, parsed)` after CSV rows load and bubbles up `(rows, specs)` to parent. Updated `FileViewerModal.tsx` to lift `csvRows` + `chartSpecs` state via `useCallback` handler, reset both on file change via `useEffect([file?.id])`, and render `<CsvChartPanel specs={chartSpecs} rows={csvRows} />` below `<FileViewer>` in the content area (gated on `isCsv && chartSpecs.length > 0`). Phase 3 integration ✅ complete.
 - [2026-04-25] Alice (alice.mmcp) — CI BUILD FIX: Diagnosed missing `chart.js`, `chartjs-adapter-date-fns`, `date-fns` in `package.json`. All three packages were imported by `chartRenderer.ts` and `CsvChartPanel.tsx` but absent from package.json, causing every CI run to fail at `npm install`. Added all three to `dependencies`. CI should go green on next push.
+- [2026-04-25] Alice (alice.mmcp) — Task 3.9: End-to-end integration review of full Phase 3 pipeline. Traced drop→ingest→table→inferChartSpecs→onDataReady→setCsvRows/setChartSpecs→CsvChartPanel→ChartTile→renderChart. Verified: state reset on file change (useEffect([file?.id])), no stale rows/specs on modal reuse. Verified: ChartTile destroys Chart.js instance on unmount — no memory leaks. Verified: CsvChartPanel gate (isCsv && chartSpecs.length > 0) prevents empty renders for non-CSV files. Verified: useCallback([]) on handleDataReady is stable — no unnecessary FileViewer re-renders. One minor note: FileViewer's useEffect does not declare onDataReady in the deps array (suppressed with eslint-disable); functionally safe since handleDataReady is memoised with useCallback([]), but worth noting for future refactors. Phase 3 ✅ COMPLETE end-to-end.
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp) — CI build fix*
+*Last updated: 2026-04-25 by Alice (alice.mmcp) — Task 3.9 end-to-end review complete. Phase 3 ✅ DONE. Phase 4 next.*
