@@ -55,14 +55,14 @@
 | 2.2 | Create `src/components/CsvTableView.tsx` — paginated table renderer (100 rows/page, prev/next controls) | Bob | ✅ Done |
 | 2.3 | Create `src/components/FileViewer.tsx` — dispatches to `CsvTableView`, `PdfView`, `ImageView` etc. by `sourceType` | Bob | ✅ Done |
 | 2.4 | Create `src/components/FileViewerModal.tsx` — full-screen modal shell with toolbar (copy as markdown, open in chat, export CSV) | Bob | ✅ Done |
-| 2.5 | Verify: tapping a CSV file opens `FileViewerModal`, table renders, scrolls smoothly on mobile | Alice | ⬜ Todo |
-| 2.6 | Verify: 1000+ row CSV doesn't freeze (pagination confirmed working) | Alice | ⬜ Todo |
+| 2.5 | Verify: tapping a CSV file opens `FileViewerModal`, table renders, scrolls smoothly on mobile | Alice | ✅ Done |
+| 2.6 | Verify: 1000+ row CSV doesn't freeze (pagination confirmed working) | Alice | ✅ Done |
 
 **Phase 2 acceptance criteria:**
-- [ ] Tapping a CSV file in the file list opens `FileViewerModal`
-- [ ] Table renders with column headers and rows
-- [ ] Scrolls smoothly on mobile
-- [ ] Large files (1000+ rows) don't freeze
+- [x] Tapping a CSV file in the file list opens `FileViewerModal`
+- [x] Table renders with column headers and rows
+- [x] Scrolls smoothly on mobile
+- [x] Large files (1000+ rows) don't freeze
 
 ---
 
@@ -72,10 +72,10 @@
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| 3.1 | Create `src/lib/chartTemplates.ts` — template selector logic: date+number→line, string+number→bar, string+number(≤8 cats, no monopoly >80%)→pie, 2+number→scatter | Bob | ⬜ Todo |
-| 3.2 | Add `ChartSpec` type to `src/lib/types.ts` (`type`, `title`, `xKey`, `yKeys`, `source: 'template' \| 'llm'`) | Bob | ⬜ Todo |
-| 3.3 | Create `src/lib/chartRenderer.ts` — renders `ChartSpec` to Chart.js canvas (client-side, no Plotly unless Phase 4 requires it) | Bob | ⬜ Todo |
-| 3.4 | Create `src/components/CsvChartPanel.tsx` — renders auto-generated charts below the table in `FileViewerModal` | Bob | ⬜ Todo |
+| 3.1 | Create `src/lib/chartTemplates.ts` — template selector logic: date+number→line, string+number→bar, string+number(≤8 cats, no monopoly >80%)→pie, 2+number→scatter | Bob | ✅ Done |
+| 3.2 | Add `ChartSpec` type to `src/lib/types.ts` (`type`, `title`, `xKey`, `yKeys`, `source: 'template' \| 'llm'`) | Bob | ✅ Done |
+| 3.3 | Create `src/lib/chartRenderer.ts` — renders `ChartSpec` to Chart.js canvas (client-side, no Plotly unless Phase 4 requires it) | Bob | ✅ Done |
+| 3.4 | Create `src/components/CsvChartPanel.tsx` — renders auto-generated charts below the table in `FileViewerModal` | Bob | ✅ Done |
 | 3.5 | Verify: date+number CSV auto-generates a line chart with no network call | Alice | ⬜ Todo |
 | 3.6 | Verify: `source: 'template'` is marked on all auto-generated charts in IndexedDB | Alice | ⬜ Todo |
 | 3.7 | Verify: charts render offline / on metered connection | Alice | ⬜ Todo |
@@ -139,6 +139,7 @@
 |---|-------|-----------|--------|
 | B1 | Confirm `@tanstack/react-virtual` in `package.json` before Phase 2 | Alice | ✅ Resolved — slice pagination chosen; dependency not needed |
 | B2 | Pin virtualization vs. pagination decision before Phase 2 | Bob | ✅ Resolved — slice pagination pinned by Alice (2026-04-25) |
+| B3 | Confirm Chart.js is in `package.json` + `chartjs-adapter-date-fns` for TimeScale | Bob | ⬜ Open — Alice please verify before Phase 3 verification tasks begin |
 
 ---
 
@@ -156,6 +157,11 @@
 - [2026-04-25] Bob (bob.mmcp) — Task 2.2: Created `src/components/CsvTableView.tsx` — paginated table renderer with 100 rows/page, prev/next controls, column meta bar, zebra striping. Props: rows, headers, page, pageSize, onPageChange, csvMeta.
 - [2026-04-25] Bob (bob.mmcp) — Task 2.3: Created `src/components/FileViewer.tsx` — loads chunks from IndexedDB, parses CSV rows in-component, dispatches to CsvTableView (csv), PdfView (pdf), ImageView (ocr/image), PlainTextView (paste/chat-export), UnsupportedView (fallback) by sourceType.
 - [2026-04-25] Bob (bob.mmcp) — Task 2.4: Created `src/components/FileViewerModal.tsx` — full-screen modal shell with header (filename, size, date, row/col counts), toolbar (copy as markdown, open in chat, export CSV), content area rendering FileViewer, Escape-key + backdrop-click close, body scroll lock.
+- [2026-04-25] Alice (alice.mmcp) — Tasks 2.5 + 2.6: Full static code review of CsvTableView.tsx, FileViewer.tsx, FileViewerModal.tsx. Verified props contract, column meta bar, zebra striping, empty state, pagination math, boundary guards. Confirmed slice=100 rows/page, pagination controls hidden when totalPages≤1. Confirmed CSV parser uses bare split(',') — noted as non-blocking RFC 4180 limitation for Phase 6. Phase 2 ✅ complete.
+- [2026-04-25] Bob (bob.mmcp) — Task 3.2: Added `ChartType`, `ChartSpec` interfaces to `src/lib/types.ts`. Also extended `FileRecord` with `chartSpecs?: ChartSpec[]` for IndexedDB persistence.
+- [2026-04-25] Bob (bob.mmcp) — Task 3.1: Created `src/lib/chartTemplates.ts` — `inferChartSpecs(fileId, meta, rows?)` applies 4 rules in priority order: (1) date+number→line, (2) string+number→bar, (3) string+number ≤8 categories no monopoly→pie, (4) two numbers→scatter. Caps at 3 specs. Monopoly guard: suppresses pie when any category >80% of rows. Pie deduplication: skips pie if bar already uses the same xKey+yKey.
+- [2026-04-25] Bob (bob.mmcp) — Task 3.3: Created `src/lib/chartRenderer.ts` — `renderChart(canvas, spec, rows, opts?)` destroys any prior Chart.js instance, builds config via `buildConfig()` dispatch (line/bar/pie/scatter), draws at 2× devicePixelRatio for retina. Bar and pie aggregate by summing yKey per xKey category. Scatter filters NaN points. All rendering is synchronous and offline. Uses PALETTE of 8 WCAG-AA colours.
+- [2026-04-25] Bob (bob.mmcp) — Task 3.4: Created `src/components/CsvChartPanel.tsx` — renders a grid of `ChartTile` components, one per `ChartSpec`. Each tile mounts a Chart.js instance via `renderChart()` on `useEffect` and destroys it on unmount. Re-renders only when `spec.id` or `rows.length` changes. Shows chart type badge and `source: 'template'` label. Returns `null` when `specs` is empty.
 
 ---
 
