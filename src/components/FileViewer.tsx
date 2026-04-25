@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { FileRecord, ChartSpec } from "../lib/types";
 import { listChunksByFile } from "../lib/db";
 import { CsvTableView } from "./CsvTableView";
+import { JsonTreeView } from "./JsonTreeView";
 import { inferChartSpecs } from "../lib/chartTemplates";
 
 const PAGE_SIZE = 100;
@@ -12,7 +13,7 @@ interface Props {
   onDataReady?: (rows: Record<string, string>[], specs: ChartSpec[]) => void;
 }
 
-// ── Minimal stubs for non-CSV viewers (Phase 5 will fill these) ───────────────
+// ── Viewer stubs / sub-components ─────────────────────────────────────────────
 
 function PdfView({ text }: { text: string }) {
   return (
@@ -26,7 +27,7 @@ function ImageView({ file }: { file: FileRecord }) {
   return (
     <div className="fv-unsupported">
       <span className="fv-unsupported-icon">🖼</span>
-      <p>Image viewer coming in Phase 5.</p>
+      <p>Image viewer coming soon.</p>
       <p className="fv-unsupported-name">{file.name}</p>
     </div>
   );
@@ -40,6 +41,17 @@ function PlainTextView({ text }: { text: string }) {
   );
 }
 
+// Phase 5: MarkdownView stub — Alice owns task 5.1
+// This placeholder renders plain text until Alice ships MarkdownView.tsx.
+function MarkdownViewStub({ text }: { text: string }) {
+  return (
+    <div className="fv-text-view">
+      <pre className="fv-pre">{text}</pre>
+    </div>
+  );
+}
+
+// Phase 5: Unsupported fallback — Alice will replace with richer message in 5.4
 function UnsupportedView({ file }: { file: FileRecord }) {
   return (
     <div className="fv-unsupported">
@@ -50,7 +62,7 @@ function UnsupportedView({ file }: { file: FileRecord }) {
   );
 }
 
-// ── FileViewer: dispatches by sourceType ──────────────────────────────────────
+// ── FileViewer: dispatches by sourceType + ext ────────────────────────────────
 
 export function FileViewer({ file, onDataReady }: Props) {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
@@ -88,7 +100,6 @@ export function FileViewer({ file, onDataReady }: Props) {
           });
           setRows(parsed);
 
-          // Infer chart specs now that we have rows + meta, then bubble up
           const specs = inferChartSpecs(file.id, file.csvMeta, parsed);
           onDataReady?.(parsed, specs);
         } else {
@@ -101,6 +112,7 @@ export function FileViewer({ file, onDataReady }: Props) {
         setLoading(false);
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file.id]);
 
   if (loading) {
@@ -115,6 +127,8 @@ export function FileViewer({ file, onDataReady }: Props) {
     return <div className="fv-error">{error}</div>;
   }
 
+  const ext = file.ext?.toLowerCase() ?? "";
+
   switch (file.sourceType) {
     case "csv":
       return (
@@ -127,16 +141,29 @@ export function FileViewer({ file, onDataReady }: Props) {
           csvMeta={file.csvMeta}
         />
       );
+
     case "pdf":
       return <PdfView text={textContent} />;
+
     case "ocr":
-    case "file":
-      return file.ext && ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(file.ext.toLowerCase())
-        ? <ImageView file={file} />
-        : <PlainTextView text={textContent} />;
+    case "file": {
+      if (["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext)) {
+        return <ImageView file={file} />;
+      }
+      if (ext === "json") {
+        return <JsonTreeView raw={textContent} />;
+      }
+      if (ext === "md" || ext === "txt") {
+        // Alice will replace MarkdownViewStub with MarkdownView in task 5.1
+        return <MarkdownViewStub text={textContent} />;
+      }
+      return <PlainTextView text={textContent} />;
+    }
+
     case "paste":
     case "chat-export":
       return <PlainTextView text={textContent} />;
+
     default:
       return <UnsupportedView file={file} />;
   }
