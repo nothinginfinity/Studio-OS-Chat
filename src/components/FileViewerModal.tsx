@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import type { FileRecord } from "../lib/types";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { FileRecord, ChartSpec } from "../lib/types";
 import { FileViewer } from "./FileViewer";
+import { CsvChartPanel } from "./CsvChartPanel";
 import { listChunksByFile } from "../lib/db";
 
 interface Props {
@@ -25,6 +26,24 @@ export function FileViewerModal({ file, onClose, onOpenInChat }: Props) {
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  // Lifted CSV state — populated via FileViewer's onDataReady callback
+  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
+  const [chartSpecs, setChartSpecs] = useState<ChartSpec[]>([]);
+
+  // Reset chart/rows state whenever the viewed file changes
+  useEffect(() => {
+    setCsvRows([]);
+    setChartSpecs([]);
+  }, [file?.id]);
+
+  const handleDataReady = useCallback(
+    (rows: Record<string, string>[], specs: ChartSpec[]) => {
+      setCsvRows(rows);
+      setChartSpecs(specs);
+    },
+    [],
+  );
 
   // Close on Escape
   useEffect(() => {
@@ -172,7 +191,10 @@ export function FileViewerModal({ file, onClose, onOpenInChat }: Props) {
 
         {/* ── Content area ── */}
         <div className="fvm-content">
-          <FileViewer file={file} />
+          <FileViewer file={file} onDataReady={handleDataReady} />
+          {isCsv && chartSpecs.length > 0 && (
+            <CsvChartPanel specs={chartSpecs} rows={csvRows} />
+          )}
         </div>
 
       </div>

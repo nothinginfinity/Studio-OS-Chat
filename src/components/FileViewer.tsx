@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
-import type { FileRecord } from "../lib/types";
+import type { FileRecord, ChartSpec } from "../lib/types";
 import { listChunksByFile } from "../lib/db";
 import { CsvTableView } from "./CsvTableView";
+import { inferChartSpecs } from "../lib/chartTemplates";
 
 const PAGE_SIZE = 100;
 
 interface Props {
   file: FileRecord;
+  /** Called once CSV rows + inferred chart specs are ready. */
+  onDataReady?: (rows: Record<string, string>[], specs: ChartSpec[]) => void;
 }
 
 // ── Minimal stubs for non-CSV viewers (Phase 5 will fill these) ───────────────
@@ -49,7 +52,7 @@ function UnsupportedView({ file }: { file: FileRecord }) {
 
 // ── FileViewer: dispatches by sourceType ──────────────────────────────────────
 
-export function FileViewer({ file }: Props) {
+export function FileViewer({ file, onDataReady }: Props) {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [textContent, setTextContent] = useState<string>("");
@@ -68,9 +71,13 @@ export function FileViewer({ file }: Props) {
         const allText = chunks.map(c => c.text).join("\n");
 
         if (file.sourceType === "csv" && file.csvMeta) {
-          // Parse stored chunk text back into row objects
           const lines = allText.split("\n").filter(l => l.trim() !== "");
-          if (lines.length === 0) { setRows([]); setHeaders([]); return; }
+          if (lines.length === 0) {
+            setRows([]);
+            setHeaders([]);
+            onDataReady?.([], []);
+            return;
+          }
           const cols = file.csvMeta.columns.map(c => c.name);
           setHeaders(cols);
           const parsed = lines.map(line => {
@@ -80,6 +87,10 @@ export function FileViewer({ file }: Props) {
             return row;
           });
           setRows(parsed);
+
+          // Infer chart specs now that we have rows + meta, then bubble up
+          const specs = inferChartSpecs(file.id, file.csvMeta, parsed);
+          onDataReady?.(parsed, specs);
         } else {
           setTextContent(allText);
         }
