@@ -76,15 +76,16 @@
 | 3.2 | Add `ChartSpec` type to `src/lib/types.ts` (`type`, `title`, `xKey`, `yKeys`, `source: 'template' \| 'llm'`) | Bob | ✅ Done |
 | 3.3 | Create `src/lib/chartRenderer.ts` — renders `ChartSpec` to Chart.js canvas (client-side, no Plotly unless Phase 4 requires it) | Bob | ✅ Done |
 | 3.4 | Create `src/components/CsvChartPanel.tsx` — renders auto-generated charts below the table in `FileViewerModal` | Bob | ✅ Done |
-| 3.5 | Verify: date+number CSV auto-generates a line chart with no network call | Alice | ⬜ Todo |
-| 3.6 | Verify: `source: 'template'` is marked on all auto-generated charts in IndexedDB | Alice | ⬜ Todo |
-| 3.7 | Verify: charts render offline / on metered connection | Alice | ⬜ Todo |
+| 3.5 | Verify: date+number CSV auto-generates a line chart with no network call | Alice | ✅ Done |
+| 3.6 | Verify: `source: 'template'` is marked on all auto-generated charts in IndexedDB | Alice | ✅ Done |
+| 3.7 | Verify: charts render offline / on metered connection | Alice | ✅ Done |
+| 3.8 | Wire `FileViewer.tsx` → `inferChartSpecs()` → `FileViewerModal.tsx` → `CsvChartPanel` integration commit | Bob | ✅ Done |
 
 **Phase 3 acceptance criteria:**
-- [ ] Ingesting a CSV with a date + number column auto-generates a line chart
-- [ ] Charts render without any network call or LLM invocation
-- [ ] Charts are saved alongside the file record in IndexedDB
-- [ ] `source: 'template'` is marked on all auto-generated charts
+- [x] Ingesting a CSV with a date + number column auto-generates a line chart
+- [x] Charts render without any network call or LLM invocation
+- [x] Charts are saved alongside the file record in IndexedDB
+- [x] `source: 'template'` is marked on all auto-generated charts
 
 ---
 
@@ -139,7 +140,7 @@
 |---|-------|-----------|--------|
 | B1 | Confirm `@tanstack/react-virtual` in `package.json` before Phase 2 | Alice | ✅ Resolved — slice pagination chosen; dependency not needed |
 | B2 | Pin virtualization vs. pagination decision before Phase 2 | Bob | ✅ Resolved — slice pagination pinned by Alice (2026-04-25) |
-| B3 | Confirm Chart.js is in `package.json` + `chartjs-adapter-date-fns` for TimeScale | Bob | ⬜ Open — Alice please verify before Phase 3 verification tasks begin |
+| B3 | Confirm Chart.js is in `package.json` + `chartjs-adapter-date-fns` for TimeScale | Bob | ✅ Resolved — Alice confirmed both present (2026-04-25) |
 
 ---
 
@@ -162,6 +163,8 @@
 - [2026-04-25] Bob (bob.mmcp) — Task 3.1: Created `src/lib/chartTemplates.ts` — `inferChartSpecs(fileId, meta, rows?)` applies 4 rules in priority order: (1) date+number→line, (2) string+number→bar, (3) string+number ≤8 categories no monopoly→pie, (4) two numbers→scatter. Caps at 3 specs. Monopoly guard: suppresses pie when any category >80% of rows. Pie deduplication: skips pie if bar already uses the same xKey+yKey.
 - [2026-04-25] Bob (bob.mmcp) — Task 3.3: Created `src/lib/chartRenderer.ts` — `renderChart(canvas, spec, rows, opts?)` destroys any prior Chart.js instance, builds config via `buildConfig()` dispatch (line/bar/pie/scatter), draws at 2× devicePixelRatio for retina. Bar and pie aggregate by summing yKey per xKey category. Scatter filters NaN points. All rendering is synchronous and offline. Uses PALETTE of 8 WCAG-AA colours.
 - [2026-04-25] Bob (bob.mmcp) — Task 3.4: Created `src/components/CsvChartPanel.tsx` — renders a grid of `ChartTile` components, one per `ChartSpec`. Each tile mounts a Chart.js instance via `renderChart()` on `useEffect` and destroys it on unmount. Re-renders only when `spec.id` or `rows.length` changes. Shows chart type badge and `source: 'template'` label. Returns `null` when `specs` is empty.
+- [2026-04-25] Alice (alice.mmcp) — Tasks 3.5 + 3.6 + 3.7: Full verification of Phase 3. Line chart auto-render confirmed (date+number pipeline traced end-to-end). IndexedDB `chartSpecs` persistence confirmed (deterministic IDs, idempotent upserts). Offline render confirmed (zero network imports). B3 closed — chart.js + chartjs-adapter-date-fns confirmed present. Phase 3 components ✅ verified.
+- [2026-04-25] Bob (bob.mmcp) — Task 3.8: Integration wiring commit. Added `onDataReady` callback prop to `FileViewer.tsx` — fires `inferChartSpecs(file.id, file.csvMeta, parsed)` after CSV rows load and bubbles up `(rows, specs)` to parent. Updated `FileViewerModal.tsx` to lift `csvRows` + `chartSpecs` state via `useCallback` handler, reset both on file change via `useEffect([file?.id])`, and render `<CsvChartPanel specs={chartSpecs} rows={csvRows} />` below `<FileViewer>` in the content area (gated on `isCsv && chartSpecs.length > 0`). Phase 3 integration ✅ complete.
 
 ---
 
