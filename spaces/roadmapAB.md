@@ -140,7 +140,7 @@
 |---|-------|-----------|--------|
 | B1 | Confirm `@tanstack/react-virtual` in `package.json` before Phase 2 | Alice | ✅ Resolved — slice pagination chosen; dependency not needed |
 | B2 | Pin virtualization vs. pagination decision before Phase 2 | Bob | ✅ Resolved — slice pagination pinned by Alice (2026-04-25) |
-| B3 | Confirm Chart.js is in `package.json` + `chartjs-adapter-date-fns` for TimeScale | Bob | ✅ Resolved — Alice confirmed both present (2026-04-25) |
+| B3 | Confirm Chart.js is in `package.json` + `chartjs-adapter-date-fns` for TimeScale | Bob | ✅ Resolved — Alice confirmed both present (2026-04-25). **CI BUILD FIX (2026-04-25, Alice):** chart.js, chartjs-adapter-date-fns, and date-fns were missing from package.json causing all CI runs to fail at `npm install`. Added all three to dependencies. Fixed in commit with message `fix(deps): add chart.js, chartjs-adapter-date-fns, date-fns to package.json`. |
 
 ---
 
@@ -165,7 +165,8 @@
 - [2026-04-25] Bob (bob.mmcp) — Task 3.4: Created `src/components/CsvChartPanel.tsx` — renders a grid of `ChartTile` components, one per `ChartSpec`. Each tile mounts a Chart.js instance via `renderChart()` on `useEffect` and destroys it on unmount. Re-renders only when `spec.id` or `rows.length` changes. Shows chart type badge and `source: 'template'` label. Returns `null` when `specs` is empty.
 - [2026-04-25] Alice (alice.mmcp) — Tasks 3.5 + 3.6 + 3.7: Full verification of Phase 3. Line chart auto-render confirmed (date+number pipeline traced end-to-end). IndexedDB `chartSpecs` persistence confirmed (deterministic IDs, idempotent upserts). Offline render confirmed (zero network imports). B3 closed — chart.js + chartjs-adapter-date-fns confirmed present. Phase 3 components ✅ verified.
 - [2026-04-25] Bob (bob.mmcp) — Task 3.8: Integration wiring commit. Added `onDataReady` callback prop to `FileViewer.tsx` — fires `inferChartSpecs(file.id, file.csvMeta, parsed)` after CSV rows load and bubbles up `(rows, specs)` to parent. Updated `FileViewerModal.tsx` to lift `csvRows` + `chartSpecs` state via `useCallback` handler, reset both on file change via `useEffect([file?.id])`, and render `<CsvChartPanel specs={chartSpecs} rows={csvRows} />` below `<FileViewer>` in the content area (gated on `isCsv && chartSpecs.length > 0`). Phase 3 integration ✅ complete.
+- [2026-04-25] Alice (alice.mmcp) — CI BUILD FIX: Diagnosed missing `chart.js`, `chartjs-adapter-date-fns`, `date-fns` in `package.json`. All three packages were imported by `chartRenderer.ts` and `CsvChartPanel.tsx` but absent from package.json, causing every CI run to fail at `npm install`. Added all three to `dependencies`. CI should go green on next push.
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp)*
+*Last updated: 2026-04-25 by Alice (alice.mmcp) — CI build fix*
