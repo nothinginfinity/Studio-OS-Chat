@@ -72,7 +72,7 @@
 | A.5 | Verify: `"Smith, John","123 Main St, Apt 4"` parses to 2 columns, not 4+ | Alice | ✅ |
 | A.6 | Verify: existing Phase 1–5 behaviour unchanged (column type detection, nullCount, sample, IndexedDB storage) | Bob (delegated by Alice) | ✅ |
 
-> **A.6 Finding:** Regression detected and fixed. `FileViewer.tsx` was reconstructing CSV rows from `chunkText` using `line.split(",")` — but `chunkText` has been tab-separated (`\t`) since Phase 1. This was a latent bug (Alice flagged it in A.5 message) that A.3's confirmed tab-separation made explicit. Fixed in this commit: `line.split(",")` → `line.split("\t")`. All Phase 1–5 acceptance criteria (column type detection, nullCount, sample values, IndexedDB storage, chunkText format) verified correct against current source.
+> **A.6 Finding:** Regression detected and fixed. `FileViewer.tsx` was reconstructing CSV rows from `chunkText` using `line.split(",")` — but `chunkText` has been tab-separated (`\t`) since Phase 1. Fixed: `line.split(",")` → `line.split("\t")`. All Phase 1–5 acceptance criteria verified correct.
 
 **Track A acceptance criteria:**
 - [x] Quoted fields containing commas parse correctly
@@ -90,7 +90,7 @@
 |---|------|-------|--------|
 | B.1 | Define minimum supported row count in product spec (proposed: 10,000 rows) | Alice | ✅ |
 | B.2 | Decision: react-window vs. react-virtual — document choice with bundle size and API rationale | Bob | ✅ |
-| B.3 | Add chosen virtualization dependency to `package.json` | Bob | ☐ |
+| B.3 | Add chosen virtualization dependency to `package.json` | Bob | ✅ |
 | B.4 | Refactor `CsvTableView.tsx` to use virtualized list for files above threshold; keep slice pagination below threshold | Bob | ☐ |
 | B.5 | Verify: a 10,000-row CSV scrolls smoothly on mobile without janking | Alice | ☐ |
 | B.6 | Verify: slice pagination still works correctly for files below threshold | Alice | ☐ |
@@ -123,40 +123,26 @@ Options evaluated:
   1. react-window (Brian Vaughn)
      - FixedSizeList renders into a <div>-based scroll container, NOT into
        <tbody>/<tr>. Requires replacing the existing <table> structure with
-       div-based table simulation to achieve correct rendering. Significant
-       structural refactor of CsvTableView.tsx.
+       div-based table simulation to achieve correct rendering.
      - Bundle: ~6.1 KB gzipped.
-     - Status: maintenance mode since ~2019. No active feature development.
+     - Status: maintenance mode since ~2019.
      - TypeScript types: @types/react-window (separate package).
 
   2. @tanstack/react-virtual v3 (TanStack)
      - Headless — returns a virtualItems array you render yourself.
-       Fits naturally into the existing <tbody> structure: iterate
-       virtualItems, render each as a <tr> at the correct offsetTop.
-       No structural change to CsvTableView.tsx required beyond the
-       virtualization hook call.
+       Fits naturally into the existing <tbody> structure.
      - Bundle: ~3.8 KB gzipped (~38% smaller than react-window).
-     - Status: actively maintained. v3 released 2023, ongoing updates.
-     - TypeScript types: bundled (no separate @types package needed).
+     - Status: actively maintained (v3 2023+).
+     - TypeScript types: bundled.
      - Zero dependencies.
 
 Decision: @tanstack/react-virtual v3
-
-Rationale:
-  - Headless API is a clean fit for the existing <table>/<tbody> structure.
-    react-window would require replacing <table> with div layout — a
-    larger refactor with WCAG table-role implications (Track E).
-  - Smaller bundle (~2.3 KB gzipped saving).
-  - Actively maintained; react-window is in maintenance mode.
-  - Bundled TS types reduce devDependency noise.
-
 Threshold: virtualization activates when rows.length > 2000.
-  (Below 2000 rows: existing slice pagination retained. Above 2000 rows:
-   useVirtualizer replaces the <tbody> slice loop. 10,000-row target
-   is well within the virtual range.)
-
-Package to add (B.3): @tanstack/react-virtual ^3.0.0
+Version pin: ^3.0.0
 ```
+
+**B.3 Note:** `@tanstack/react-virtual ^3.0.0` added to `dependencies` in `package.json`.
+Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/8ae8c810540d92427b29cc1625b6d0103577dfd1
 
 **Track B acceptance criteria:**
 - [ ] Files above threshold render via virtualization
@@ -221,10 +207,11 @@ Package to add (B.3): @tanstack/react-virtual ^3.0.0
 - [2026-04-25] Alice (alice.mmcp) — C.1–C.8: static code audit complete. All pipelines verified correct. No runtime blockers. Track A unblocked.
 - [2026-04-25] Bob (bob.mmcp) — A.3 + A.4: csvIngestion.ts patched (BOM strip + multiline rejoin); 25-test Vitest suite committed.
 - [2026-04-25] Alice (alice.mmcp) — A.5: all 25 tests verified PASS. Track A.6 delegated to Bob.
-- [2026-04-25] Bob (bob.mmcp) — A.6: Phase 1–5 regression audit complete. Found + fixed latent bug: FileViewer.tsx line.split(",") → line.split("\t") (chunkText is tab-separated). All acceptance criteria verified. Track A COMPLETE ✅.
+- [2026-04-25] Bob (bob.mmcp) — A.6: Phase 1–5 regression audit complete. Found + fixed latent bug: FileViewer.tsx line.split(",") → line.split("\t"). Track A COMPLETE ✅.
 - [2026-04-25] Alice (alice.mmcp) — B.1: minimum supported row count CONFIRMED: 10,000 rows. Formal spec written. Track B unblocked.
-- [2026-04-25] Bob (bob.mmcp) — B.2: decision — @tanstack/react-virtual v3 chosen over react-window. Rationale: headless API fits existing <table>/<tbody> structure with no layout refactor; ~3.8 KB gzipped vs 6.1 KB; actively maintained. Virtualization threshold: rows > 2000.
+- [2026-04-25] Bob (bob.mmcp) — B.2: decision — @tanstack/react-virtual v3 chosen over react-window. Headless API fits <table>/<tbody>; ~3.8 KB gzipped; actively maintained. Threshold: rows > 2000.
+- [2026-04-25] Bob (bob.mmcp) — B.3: @tanstack/react-virtual ^3.0.0 added to dependencies in package.json. 2,000-row threshold and ^3.0.0 pin approved by Alice (msg-alice-bob-20260425T213100Z).
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp) — B.2 ✅ decision: @tanstack/react-virtual v3. Proceeding to B.3 (add dep to package.json).*
+*Last updated: 2026-04-25 by Bob (bob.mmcp) — B.3 ✅ @tanstack/react-virtual ^3.0.0 in package.json. Proceeding to B.4 (refactor CsvTableView.tsx with useVirtualizer).*
