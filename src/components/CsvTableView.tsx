@@ -1,4 +1,11 @@
+import { useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CsvMeta } from "../lib/types";
+
+const VIRTUALIZATION_THRESHOLD = 2000;
+// Row height in px used by the virtualizer estimator.
+// Matches the CSS line-height of .csv-td (1 line of text + padding).
+const ESTIMATED_ROW_HEIGHT = 32;
 
 interface Props {
   rows: Record<string, string>[];
@@ -10,9 +17,7 @@ interface Props {
 }
 
 export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvMeta }: Props) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const start = page * pageSize;
-  const slice = rows.slice(start, start + pageSize);
+  const useVirtual = rows.length > VIRTUALIZATION_THRESHOLD;
 
   return (
     <div className="csv-table-wrap">
@@ -30,7 +35,98 @@ export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvM
         </div>
       )}
 
-      {/* ── Table ── */}
+      {/* ── Table: virtualized (large) or paginated (small) ── */}
+      {useVirtual
+        ? <VirtualizedTable rows={rows} headers={headers} />
+        : <PaginatedTable
+            rows={rows}
+            headers={headers}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+          />
+      }
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Virtualized path  (rows.length > 2000)
+// ─────────────────────────────────────────────
+function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; headers: string[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 10,
+  });
+
+  const totalHeight = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
+
+  return (
+    <div
+      ref={scrollRef}
+      className="csv-table-scroll"
+      style={{ overflowY: "auto", maxHeight: "60vh" }}
+    >
+      <table className="csv-table">
+        <thead>
+          <tr>
+            {headers.map(h => (
+              <th key={h} className="csv-th">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody style={{ height: totalHeight, position: "relative", display: "block" }}>
+          {virtualItems.map(virtualRow => {
+            const row = rows[virtualRow.index];
+            return (
+              <tr
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                className={virtualRow.index % 2 === 0 ? "csv-tr" : "csv-tr csv-tr--alt"}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {headers.map(h => (
+                  <td key={h} className="csv-td">{row[h] ?? ""}</td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Paginated path  (rows.length <= 2000)
+// ─────────────────────────────────────────────
+function PaginatedTable({
+  rows, headers, page, pageSize, onPageChange,
+}: {
+  rows: Record<string, string>[];
+  headers: string[];
+  page: number;
+  pageSize: number;
+  onPageChange: (p: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const start = page * pageSize;
+  const slice = rows.slice(start, start + pageSize);
+
+  return (
+    <>
       <div className="csv-table-scroll">
         <table className="csv-table">
           <thead>
@@ -60,7 +156,6 @@ export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvM
         </table>
       </div>
 
-      {/* ── Pagination ── */}
       {totalPages > 1 && (
         <div className="csv-pagination">
           <button
@@ -87,6 +182,6 @@ export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvM
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 }
