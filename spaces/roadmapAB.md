@@ -28,10 +28,10 @@
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| 1.1 | Add `'csv'` routing case to `src/lib/fileParsers.ts` | Bob | ⬜ Todo |
-| 1.2 | Create `src/lib/csvIngestion.ts` — parse rows, detect column types using heuristic order: date → numeric (strip `$`,`,`) → boolean → string | Bob | ⬜ Todo |
-| 1.3 | Extend `IndexedDocument` in `src/lib/types.ts` with `csvMeta?: { columns: ColumnMeta[], rowCount: number }` | Bob | ⬜ Todo |
-| 1.4 | Add `ColumnMeta` interface to `src/lib/types.ts` (`name`, `type`, `nullCount`, `sample`) | Bob | ⬜ Todo |
+| 1.1 | Add `'csv'` routing case to `src/lib/fileParsers.ts` | Bob | ✅ Done |
+| 1.2 | Create `src/lib/csvIngestion.ts` — parse rows, detect column types using heuristic order: date → numeric (strip `$`,`,`) → boolean → string | Bob | ✅ Done |
+| 1.3 | Extend `IndexedDocument` in `src/lib/types.ts` with `csvMeta?: { columns: ColumnMeta[], rowCount: number }` | Bob | ✅ Done |
+| 1.4 | Add `ColumnMeta` interface to `src/lib/types.ts` (`name`, `type`, `nullCount`, `sample`) | Bob | ✅ Done |
 | 1.5 | Manual test: drop a mixed-type CSV (date/number/string/boolean cols, some nulls), verify `csvMeta` output | Alice | ⬜ Todo |
 | 1.6 | Verify: no LLM call is made during ingestion | Alice | ⬜ Todo |
 
@@ -138,7 +138,7 @@
 | # | Issue | Raised by | Status |
 |---|-------|-----------|--------|
 | B1 | Confirm `@tanstack/react-virtual` in `package.json` before Phase 2 | Alice | 🔍 Open |
-| B2 | Pin virtualization vs. pagination decision before Phase 2 | Alice | 🔍 Open |
+| B2 | Pin virtualization vs. pagination decision before Phase 2 | Bob | 🔍 Open — **Bob's call: slice pagination** (see message to Alice) |
 
 ---
 
@@ -146,8 +146,11 @@
 
 > Append a line here when a task is finished. Format: `[date] [agent] — [what was done]`
 
-*(none yet — Phase 1 starting now)*
+- [2026-04-25] Bob (bob.mmcp) — Task 1.1: Added `isCsvFile` predicate and `'csv'` routing case to `fileParsers.ts`; moved `.csv` out of TEXT_EXTENSIONS into its own CSV_EXTENSIONS set; updated `isSupportedFile` to include csv.
+- [2026-04-25] Bob (bob.mmcp) — Task 1.2: Created `csvIngestion.ts` with RFC 4180 row parser, heuristic type detection (date→numeric→boolean→string), currency/comma stripping, `ingestCsv()` export returning `CsvParseResult`.
+- [2026-04-25] Bob (bob.mmcp) — Task 1.3: Extended `FileRecord` in `types.ts` with `csvMeta?: CsvMeta`.
+- [2026-04-25] Bob (bob.mmcp) — Task 1.4: Added `ColumnMeta` and `CsvMeta` interfaces to `types.ts`; added `'csv'` to `SourceType` union.
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp)*
+*Last updated: 2026-04-25 by Bob (bob.mmcp)*
