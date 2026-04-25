@@ -7,7 +7,12 @@ import { listChunksByFile } from "../lib/db";
 interface Props {
   file: FileRecord | null;
   onClose: () => void;
+  /** Legacy: open file content as raw text in a plain chat session. */
   onOpenInChat?: (file: FileRecord, contextText: string) => void;
+  /** Phase 4: open an LLM-backed analysis session attached to this file.
+   *  Only shown for CSV files. The caller creates the session via
+   *  createChatSession({ attachedFileId: file.id }) and navigates to chat. */
+  onAnalyzeInChat?: (file: FileRecord) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -22,7 +27,7 @@ function formatDate(ts: number): string {
   });
 }
 
-export function FileViewerModal({ file, onClose, onOpenInChat }: Props) {
+export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }: Props) {
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -121,6 +126,12 @@ export function FileViewerModal({ file, onClose, onOpenInChat }: Props) {
     onClose();
   }
 
+  function handleAnalyzeInChat() {
+    if (!onAnalyzeInChat) return;
+    onAnalyzeInChat(file!);
+    onClose();
+  }
+
   const isCsv = file.sourceType === "csv";
 
   return (
@@ -173,6 +184,18 @@ export function FileViewerModal({ file, onClose, onOpenInChat }: Props) {
             >
               <span className="fvm-tool-icon">✨</span>
               <span>Open in Chat</span>
+            </button>
+          )}
+
+          {/* Phase 4: Analyze in Chat — CSV only, LLM opt-in */}
+          {isCsv && onAnalyzeInChat && (
+            <button
+              className="fvm-tool-btn fvm-tool-btn--analyze"
+              onClick={handleAnalyzeInChat}
+              title="Analyze this file with the LLM"
+            >
+              <span className="fvm-tool-icon">🔬</span>
+              <span>Analyze in Chat</span>
             </button>
           )}
 
