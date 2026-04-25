@@ -89,7 +89,7 @@
 | # | Task | Owner | Status |
 |---|------|-------|--------|
 | B.1 | Define minimum supported row count in product spec (proposed: 10,000 rows) | Alice | ✅ |
-| B.2 | Decision: react-window vs. react-virtual — document choice with bundle size and API rationale | Bob | ☐ |
+| B.2 | Decision: react-window vs. react-virtual — document choice with bundle size and API rationale | Bob | ✅ |
 | B.3 | Add chosen virtualization dependency to `package.json` | Bob | ☐ |
 | B.4 | Refactor `CsvTableView.tsx` to use virtualized list for files above threshold; keep slice pagination below threshold | Bob | ☐ |
 | B.5 | Verify: a 10,000-row CSV scrolls smoothly on mobile without janking | Alice | ☐ |
@@ -112,6 +112,50 @@ B.1 — Minimum Supported Row Count
       LLM context via fileContext.ts
     - rowCount reported in UI matches actual row count
   Out of scope for this track: files > 10k rows (future Track D / streaming).
+```
+
+**B.2 Decision: `@tanstack/react-virtual` v3 — CHOSEN ✅ (Bob, 2026-04-25)**
+
+```
+B.2 — Virtualization Library Decision
+
+Options evaluated:
+  1. react-window (Brian Vaughn)
+     - FixedSizeList renders into a <div>-based scroll container, NOT into
+       <tbody>/<tr>. Requires replacing the existing <table> structure with
+       div-based table simulation to achieve correct rendering. Significant
+       structural refactor of CsvTableView.tsx.
+     - Bundle: ~6.1 KB gzipped.
+     - Status: maintenance mode since ~2019. No active feature development.
+     - TypeScript types: @types/react-window (separate package).
+
+  2. @tanstack/react-virtual v3 (TanStack)
+     - Headless — returns a virtualItems array you render yourself.
+       Fits naturally into the existing <tbody> structure: iterate
+       virtualItems, render each as a <tr> at the correct offsetTop.
+       No structural change to CsvTableView.tsx required beyond the
+       virtualization hook call.
+     - Bundle: ~3.8 KB gzipped (~38% smaller than react-window).
+     - Status: actively maintained. v3 released 2023, ongoing updates.
+     - TypeScript types: bundled (no separate @types package needed).
+     - Zero dependencies.
+
+Decision: @tanstack/react-virtual v3
+
+Rationale:
+  - Headless API is a clean fit for the existing <table>/<tbody> structure.
+    react-window would require replacing <table> with div layout — a
+    larger refactor with WCAG table-role implications (Track E).
+  - Smaller bundle (~2.3 KB gzipped saving).
+  - Actively maintained; react-window is in maintenance mode.
+  - Bundled TS types reduce devDependency noise.
+
+Threshold: virtualization activates when rows.length > 2000.
+  (Below 2000 rows: existing slice pagination retained. Above 2000 rows:
+   useVirtualizer replaces the <tbody> slice loop. 10,000-row target
+   is well within the virtual range.)
+
+Package to add (B.3): @tanstack/react-virtual ^3.0.0
 ```
 
 **Track B acceptance criteria:**
@@ -179,7 +223,8 @@ B.1 — Minimum Supported Row Count
 - [2026-04-25] Alice (alice.mmcp) — A.5: all 25 tests verified PASS. Track A.6 delegated to Bob.
 - [2026-04-25] Bob (bob.mmcp) — A.6: Phase 1–5 regression audit complete. Found + fixed latent bug: FileViewer.tsx line.split(",") → line.split("\t") (chunkText is tab-separated). All acceptance criteria verified. Track A COMPLETE ✅.
 - [2026-04-25] Alice (alice.mmcp) — B.1: minimum supported row count CONFIRMED: 10,000 rows. Formal spec written. Track B unblocked.
+- [2026-04-25] Bob (bob.mmcp) — B.2: decision — @tanstack/react-virtual v3 chosen over react-window. Rationale: headless API fits existing <table>/<tbody> structure with no layout refactor; ~3.8 KB gzipped vs 6.1 KB; actively maintained. Virtualization threshold: rows > 2000.
 
 ---
 
-*Last updated: 2026-04-25 by Bob (bob.mmcp) — B.1 ✅ confirmed (10,000 rows, Alice). roadmapABp2.md updated with formal spec. Proceeding to B.2 (react-window vs. react-virtual decision).*
+*Last updated: 2026-04-25 by Bob (bob.mmcp) — B.2 ✅ decision: @tanstack/react-virtual v3. Proceeding to B.3 (add dep to package.json).*
