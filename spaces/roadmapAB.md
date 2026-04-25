@@ -99,8 +99,8 @@
 | # | Task | Owner | Status |
 |---|------|-------|--------|
 | 4.1 | Create `src/lib/fileContext.ts` — builds context string from `csvMeta` + stratified row sample as markdown table | Alice | ⬜ Todo |
-| 4.2 | Extend `src/lib/chatSession.ts` — accept `attachedFileId` on session creation | Bob | ⬜ Todo |
-| 4.3 | Add "Analyze in Chat" button to `src/components/FileViewerModal.tsx` toolbar | Bob | ⬜ Todo |
+| 4.2 | Extend `src/lib/chatSession.ts` — accept `attachedFileId` on session creation | Bob | ✅ Done |
+| 4.3 | Add "Analyze in Chat" button to `src/components/FileViewerModal.tsx` toolbar | Bob | ✅ Done |
 | 4.4 | Show attached file badge in `src/components/ChatView.tsx` when `attachedFileId` is set | Bob | ⬜ Todo |
 | 4.5 | Wire `chartRenderer.ts` to parse and render LLM-emitted `ChartSpec` JSON blocks from chat responses | Alice | ⬜ Todo |
 | 4.6 | Verify: "Analyze in Chat" opens a session with file context pre-loaded, no LLM call until user sends a message | Alice | ⬜ Todo |
@@ -168,7 +168,9 @@
 - [2026-04-25] Bob (bob.mmcp) — Task 3.8: Integration wiring commit. Added `onDataReady` callback prop to `FileViewer.tsx` — fires `inferChartSpecs(file.id, file.csvMeta, parsed)` after CSV rows load and bubbles up `(rows, specs)` to parent. Updated `FileViewerModal.tsx` to lift `csvRows` + `chartSpecs` state via `useCallback` handler, reset both on file change via `useEffect([file?.id])`, and render `<CsvChartPanel specs={chartSpecs} rows={csvRows} />` below `<FileViewer>` in the content area (gated on `isCsv && chartSpecs.length > 0`). Phase 3 integration ✅ complete.
 - [2026-04-25] Alice (alice.mmcp) — CI BUILD FIX: Diagnosed missing `chart.js`, `chartjs-adapter-date-fns`, `date-fns` in `package.json`. All three packages were imported by `chartRenderer.ts` and `CsvChartPanel.tsx` but absent from package.json, causing every CI run to fail at `npm install`. Added all three to `dependencies`. CI should go green on next push.
 - [2026-04-25] Alice (alice.mmcp) — Task 3.9: End-to-end integration review of full Phase 3 pipeline. Traced drop→ingest→table→inferChartSpecs→onDataReady→setCsvRows/setChartSpecs→CsvChartPanel→ChartTile→renderChart. Verified: state reset on file change (useEffect([file?.id])), no stale rows/specs on modal reuse. Verified: ChartTile destroys Chart.js instance on unmount — no memory leaks. Verified: CsvChartPanel gate (isCsv && chartSpecs.length > 0) prevents empty renders for non-CSV files. Verified: useCallback([]) on handleDataReady is stable — no unnecessary FileViewer re-renders. One minor note: FileViewer's useEffect does not declare onDataReady in the deps array (suppressed with eslint-disable); functionally safe since handleDataReady is memoised with useCallback([]), but worth noting for future refactors. Phase 3 ✅ COMPLETE end-to-end.
+- [2026-04-25] Bob (bob.mmcp) — Task 4.2: Created `src/lib/chatSession.ts` — `ChatSessionOptions` interface with optional `attachedFileId`; `createChatSession(options?)` factory using `crypto.randomUUID()`, returns `ChatSession & { attachedFileId?: string }`; `isFileAttachedSession()` type-guard helper. Pure synchronous function — no IndexedDB write, no LLM call.
+- [2026-04-25] Bob (bob.mmcp) — Task 4.3: Updated `src/components/FileViewerModal.tsx` — added optional `onAnalyzeInChat?: (file: FileRecord) => void` prop; added "Analyze in Chat" button (🔬 icon, `fvm-tool-btn--analyze` class) gated on `isCsv && onAnalyzeInChat`; `handleAnalyzeInChat()` calls `onAnalyzeInChat(file)` then `onClose()`. Caller creates session via `createChatSession({ attachedFileId: file.id })`. No LLM call at click time.
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp) — Task 3.9 end-to-end review complete. Phase 3 ✅ DONE. Phase 4 next.*
+*Last updated: 2026-04-25 by Bob (bob.mmcp) — Tasks 4.2 + 4.3 ✅ Done. Alice's turn: 4.1 (fileContext.ts).*
