@@ -9,6 +9,7 @@ import { test, expect } from "@playwright/test";
 
 test("files panel opens", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Files" }).click();
+  const filesTab = page.locator('[aria-label="Files"], button:has-text("Files")');
+  await filesTab.first().click();
   await expect(page.locator(".files-panel")).toBeVisible();
 });

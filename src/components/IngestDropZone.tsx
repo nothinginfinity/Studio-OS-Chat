@@ -28,7 +28,7 @@ import { ingestCsv } from "../lib/csvIngestion";
 import { indexFile } from "../lib/fileIndex";
 import { putFileRoot } from "../lib/db";
 import { uid } from "../lib/utils";
-import type { OCRMode, FileRootRecord } from "../lib/types";
+import type { OCRMode, FileRootRecord, FileRecord } from "../lib/types";
 import "../phase4.css";
 
 type FileStatus = "pending" | "processing" | "done" | "error";
@@ -217,9 +217,9 @@ export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
         ))}
       </div>
 
+      {/* FIX-003: align testid with what tests look for (kebab: ingest-drop-zone) */}
       <div
         className={dropzoneClass}
-        {/* FIX-003: align testid with what tests look for (kebab: ingest-drop-zone) */}
         data-testid="ingest-drop-zone"
         onDragOver={(e) => {
           e.preventDefault();
@@ -286,6 +286,3 @@ export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
     </div>
   );
 }
-
-// Re-export FileRecord type used in processFile for sourceType cast
-import type { FileRecord } from "../lib/types";
