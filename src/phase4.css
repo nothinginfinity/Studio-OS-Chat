@@ -1,0 +1,297 @@
+/*
+ * phase4.css — Studio-OS-Chat Phase 4 UI/UX Polish
+ * Covers: empty states, error boundary, message animations, drag-over feedback
+ * All values use CSS custom properties backed by tokens.ts where possible.
+ *
+ * D-1: Typography — body line-height 1.6, UI label line-height 1.3, font-weight 500 on labels
+ * D-2: Spacing — all gap/padding use multiples of 4/8/16/24/40px token scale
+ * D-3: Icons — aria-hidden on all decorative icon spans throughout components
+ */
+
+/* ─── B-2: FilesPanel Empty State ─────────────────────────────────────── */
+.files-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px; /* tokens.space.xl / tokens.space.lg */
+  gap: 8px;            /* tokens.space.sm */
+  text-align: center;
+}
+
+.files-empty-state-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.files-empty-state-heading {
+  margin: 0;
+  font-size: 18px;     /* tokens.font.lg */
+  font-weight: 600;
+  line-height: 1.3;    /* D-1: UI heading line-height */
+  color: var(--color-text-primary, #111827);
+}
+
+.files-empty-state-subtext {
+  margin: 0;
+  font-size: 13px;     /* tokens.font.sm */
+  line-height: 1.6;    /* D-1: body text line-height */
+  color: var(--color-text-secondary, #6B7280);
+}
+
+.files-empty-state-cta {
+  margin-top: 16px;    /* tokens.space.md */
+  padding: 8px 16px;   /* tokens.space.sm / tokens.space.md */
+  border-radius: 12px; /* tokens.radius.md */
+  border: none;
+  background: var(--color-accent-primary, #6366F1);
+  color: #fff;
+  font-size: 13px;     /* tokens.font.sm */
+  font-weight: 500;    /* D-1: UI label weight */
+  line-height: 1.3;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 150ms ease;
+}
+
+.files-empty-state-cta:hover {
+  background: var(--color-accent-hover, #4F46E5);
+}
+
+.files-empty-state-cta:focus-visible {
+  outline: 3px solid var(--color-accent-subtle, rgba(99,102,241,0.35));
+  outline-offset: 2px;
+}
+
+/* ─── B-3: MessageList Empty State ────────────────────────────────────── */
+.message-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  gap: 8px;
+  text-align: center;
+  flex: 1;
+}
+
+.message-list-empty-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.message-list-empty-heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary, #111827);
+}
+
+.message-list-empty-subtext {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary, #6B7280);
+}
+
+.message-list-empty-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.message-list-empty-chip {
+  padding: 6px 12px;
+  border-radius: 9999px;  /* tokens.radius.full */
+  border: 1px solid var(--color-surface-border, #E5E7EB);
+  background: var(--color-surface-elevated, #F7F7F8);
+  font-size: 13px;
+  font-weight: 500;       /* D-1 */
+  line-height: 1.3;
+  color: var(--color-text-secondary, #6B7280);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.message-list-empty-chip:hover {
+  border-color: var(--color-accent-primary, #6366F1);
+  color: var(--color-accent-primary, #6366F1);
+}
+
+.message-list-empty-chip:focus-visible {
+  outline: 3px solid rgba(99,102,241,0.35);
+  outline-offset: 2px;
+}
+
+/* ─── B-5: ViewerErrorBoundary Polish ─────────────────────────────────── */
+.viewer-error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  gap: 8px;
+  text-align: center;
+}
+
+.viewer-error-icon {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.viewer-error-heading {
+  margin: 0;
+  font-size: 15px;       /* tokens.font.md */
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-primary, #111827);
+}
+
+.viewer-error-subtext {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary, #6B7280);
+}
+
+.viewer-error-detail-toggle {
+  background: none;
+  border: none;
+  font-size: 12px;       /* tokens.font.xs + 1 */
+  font-weight: 500;
+  color: var(--color-accent-primary, #6366F1);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1.3;
+}
+
+.viewer-error-detail {
+  font-size: 11px;       /* tokens.font.xs */
+  line-height: 1.6;
+  color: var(--color-text-secondary, #6B7280);
+  background: var(--color-surface-elevated, #F7F7F8);
+  border-radius: 6px;    /* tokens.radius.sm */
+  padding: 8px 16px;     /* tokens.space.sm / tokens.space.md */
+  max-width: 480px;
+  text-align: left;
+  overflow: auto;
+  margin: 4px 0 0;
+}
+
+.viewer-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.viewer-error-btn {
+  padding: 6px 16px;
+  border-radius: 6px;     /* tokens.radius.sm */
+  font-size: 13px;
+  font-weight: 500;       /* D-1 */
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viewer-error-btn--primary {
+  background: var(--color-accent-primary, #6366F1);
+  color: #fff;
+  border: none;
+}
+
+.viewer-error-btn--primary:hover {
+  background: var(--color-accent-hover, #4F46E5);
+}
+
+.viewer-error-btn--secondary {
+  background: transparent;
+  color: var(--color-text-secondary, #6B7280);
+  border: 1px solid var(--color-surface-border, #E5E7EB);
+}
+
+.viewer-error-btn--secondary:hover {
+  border-color: var(--color-text-secondary, #6B7280);
+}
+
+.viewer-error-btn:focus-visible {
+  outline: 3px solid rgba(99,102,241,0.35);
+  outline-offset: 2px;
+}
+
+/* ─── C-3: Message Bubble Enter Animation ─────────────────────────────── */
+@keyframes message-bubble-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-bubble-enter {
+  animation: message-bubble-enter 120ms ease-out both;
+}
+
+/* reduced-motion: animation class is never added (checked in JS via matchMedia) */
+
+/* ─── C-4: IngestDropZone Drag-over Feedback ──────────────────────────── */
+
+/* Drag-over state: accent border + tinted background */
+.ingest-dropzone--drag {
+  border-color: var(--color-accent-primary, #6366F1) !important;
+  background: var(--color-accent-subtle, rgba(99,102,241,0.08)) !important;
+}
+
+/* Drop-success flash: green border, 300ms */
+.ingest-dropzone--drop-success {
+  border-color: var(--color-status-success, #22C55E) !important;
+  background: rgba(34,197,94,0.08) !important;
+  transition: border-color 300ms ease, background 300ms ease;
+}
+
+/* C-4: icon spring scale on drag-over */
+@keyframes ingest-icon-spring {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.15); }
+  75%  { transform: scale(0.97); }
+  100% { transform: scale(1.1); }
+}
+
+.ingest-dropzone-icon--drag {
+  animation: ingest-icon-spring 250ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  display: inline-block;
+}
+
+/* reduced-motion: suppress spring, allow color-only change */
+@media (prefers-reduced-motion: reduce) {
+  .ingest-dropzone-icon--drag {
+    animation: none;
+    transform: none;
+  }
+
+  .message-bubble-enter {
+    animation: none;
+  }
+
+  .files-empty-state-cta,
+  .message-list-empty-chip,
+  .viewer-error-btn {
+    transition: none;
+  }
+}

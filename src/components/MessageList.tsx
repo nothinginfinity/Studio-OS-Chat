@@ -1,48 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ChatMessage, ChartSpec } from "../lib/types";
 import { extractChartSpecResults } from "../lib/chartSpecParser";
 import type { ParseError } from "../lib/chartSpecParser";
 import { InlineCsvChart } from "./InlineCsvChart";
+import "../phase4.css";
 
 interface Props {
   messages: ChatMessage[];
-  /** Called when LLM-emitted ChartSpecs are found in an assistant message. */
   onChartSpecsFound?: (specs: ChartSpec[]) => void;
-  /** CSV rows for the currently attached file — needed to render inline charts. */
   csvRows?: Record<string, string>[];
+  /** Optional: called when a suggested prompt chip is tapped */
+  onSuggestedPrompt?: (text: string) => void;
 }
 
-/** Strip ```chartspec...``` blocks before markdown rendering so raw JSON is hidden. */
+const SUGGESTED_PROMPTS = [
+  "Summarise the attached file",
+  "What are the key insights?",
+  "Compare columns and identify trends",
+];
+
 function stripChartSpecBlocks(text: string): string {
   return text.replace(/```chartspec[\s\S]*?```/gi, '').trim();
 }
 
-// Lightweight markdown → HTML (no external dependency)
 function renderMarkdown(text: string): string {
   return text
-    // fenced code blocks
     .replace(/```[\w]*\n?([\s\S]*?)```/g, "<pre><code>$1</code></pre>")
-    // inline code
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    // bold
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    // italic
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    // h3
     .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    // h2
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    // h1
     .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    // unordered list items
     .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
-    // wrap consecutive <li> blocks in <ul>
     .replace(/(<li>[\s\S]*?<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
-    // numbered list items
     .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
-    // double newline → paragraph break
     .replace(/\n\n+/g, "</p><p>")
-    // single newline → line break
     .replace(/\n/g, "<br/>");
 }
 
@@ -87,10 +80,6 @@ function ToolPill({ message }: { message: ChatMessage }) {
   );
 }
 
-/**
- * Friendly error card rendered in place of a chart when the LLM emits a
- * ```chartspec block that fails JSON parsing or schema validation.
- */
 function ChartParseErrorCard({ error }: { error: ParseError }) {
   const [open, setOpen] = useState(false);
   return (
@@ -138,7 +127,6 @@ function AssistantBubble({
 
   const cleaned = stripChartSpecBlocks(message.content);
   const html = renderMarkdown(cleaned);
-
   const hasChartContent = specs.length > 0 || errors.length > 0;
 
   return (
@@ -149,12 +137,9 @@ function AssistantBubble({
       />
       {hasChartContent && (
         <div className="inline-chart-list">
-          {/* Valid specs: render chart. Empty csvRows → Chart.js renders with no data,
-              which is correct per AC: "works when no file is attached". */}
           {specs.map((spec) => (
             <InlineCsvChart key={spec.id} spec={spec} rows={csvRows} />
           ))}
-          {/* Parse errors: friendly card, not a crash */}
           {errors.map((err) => (
             <ChartParseErrorCard key={`parse-error-${err.blockIndex}`} error={err} />
           ))}
@@ -164,37 +149,100 @@ function AssistantBubble({
   );
 }
 
-export function MessageList({ messages, onChartSpecsFound, csvRows = [] }: Props) {
+// C-3: animated message bubble wrapper — slide-up + fade on first mount only
+function AnimatedBubble({ id, children }: { id: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+    const el = ref.current;
+    if (!el) return;
+    // Respect prefers-reduced-motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.classList.add('message-bubble-enter');
+    const onEnd = () => el.classList.remove('message-bubble-enter');
+    el.addEventListener('animationend', onEnd, { once: true });
+  }, []);
+
+  return (
+    <div ref={ref} data-bubble-id={id}>
+      {children}
+    </div>
+  );
+}
+
+// B-3: MessageList empty state
+function MessageListEmptyState({ onSuggestedPrompt }: { onSuggestedPrompt?: (text: string) => void }) {
+  return (
+    <div className="message-list-empty" role="region" aria-label="No messages yet">
+      <span className="message-list-empty-icon" aria-hidden="true">💬</span>
+      <h3 className="message-list-empty-heading">Start a conversation</h3>
+      <p className="message-list-empty-subtext">
+        Ask anything, or attach a file to analyse it.
+      </p>
+      {onSuggestedPrompt && (
+        <div className="message-list-empty-chips" role="list" aria-label="Suggested prompts">
+          {SUGGESTED_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              role="listitem"
+              className="message-list-empty-chip"
+              onClick={() => onSuggestedPrompt(prompt)}
+              aria-label={`Use suggested prompt: ${prompt}`}
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MessageList({ messages, onChartSpecsFound, csvRows = [], onSuggestedPrompt }: Props) {
+  // B-3: show empty state when no messages
+  if (messages.length === 0) {
+    return <MessageListEmptyState onSuggestedPrompt={onSuggestedPrompt} />;
+  }
+
   return (
     <div className="message-list">
       {messages.map((message) => {
         if (message.role === "tool") {
           return (
-            <div key={message.id} className="message message-tool">
-              <ToolPill message={message} />
-            </div>
+            // C-3: wrap in AnimatedBubble
+            <AnimatedBubble key={message.id} id={message.id}>
+              <div className="message message-tool">
+                <ToolPill message={message} />
+              </div>
+            </AnimatedBubble>
           );
         }
         return (
-          <div key={message.id} className={`message message-${message.role}`}>
-            <div className="message-role">
-              {message.role === "assistant" ? "Studio OS" : "You"}
+          // C-3: wrap in AnimatedBubble — streaming tokens do NOT re-trigger (key is stable id)
+          <AnimatedBubble key={message.id} id={message.id}>
+            <div className={`message message-${message.role}`}>
+              <div className="message-role">
+                {message.role === "assistant" ? "Studio OS" : "You"}
+              </div>
+              {message.role === "assistant" ? (
+                <>
+                  <AssistantBubble
+                    message={message}
+                    csvRows={csvRows}
+                    onChartSpecsFound={onChartSpecsFound}
+                  />
+                  {message.status === "streaming" && (
+                    <span className="streaming-cursor">\u258C</span>
+                  )}
+                </>
+              ) : (
+                <div className="message-content">{message.content}</div>
+              )}
             </div>
-            {message.role === "assistant" ? (
-              <>
-                <AssistantBubble
-                  message={message}
-                  csvRows={csvRows}
-                  onChartSpecsFound={onChartSpecsFound}
-                />
-                {message.status === "streaming" && (
-                  <span className="streaming-cursor">\u258C</span>
-                )}
-              </>
-            ) : (
-              <div className="message-content">{message.content}</div>
-            )}
-          </div>
+          </AnimatedBubble>
         );
       })}
     </div>

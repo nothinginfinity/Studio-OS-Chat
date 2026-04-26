@@ -6,6 +6,7 @@ import { FilePreviewSheet } from "./FilePreviewSheet";
 import { FileViewerModal } from "./FileViewerModal";
 import { useLongPress } from "../hooks/useLongPress";
 import "../files.css";
+import "../phase4.css";
 
 function relativeTime(ts: number | null): string {
   if (!ts) return "Not indexed yet";
@@ -32,7 +33,7 @@ function FileRootCard({
 
   function handleClick() {
     if (longPressTriggeredRef.current) return;
-    onLongPress(root); // tap also opens preview
+    onLongPress(root);
   }
 
   return (
@@ -50,7 +51,8 @@ function FileRootCard({
       {...bind}
     >
       <div className="file-root-card-name">
-        {root.kind === "directory" ? "📁" : "📄"}&nbsp;&nbsp;{root.name}
+        <span aria-hidden="true">{root.kind === "directory" ? "📁" : "📄"}</span>
+        &nbsp;&nbsp;{root.name}
       </div>
       <div className="file-root-card-meta">
         <span className="file-root-card-kind">
@@ -62,13 +64,32 @@ function FileRootCard({
   );
 }
 
+// B-2: FilesPanel empty state component
+function FilesPanelEmptyState({ onAddFiles }: { onAddFiles: () => void }) {
+  return (
+    <div className="files-empty-state" role="region" aria-label="No files indexed">
+      <span className="files-empty-state-icon" aria-hidden="true">🗂️</span>
+      <h3 className="files-empty-state-heading">No files yet</h3>
+      <p className="files-empty-state-subtext">
+        Drop a CSV, image, PDF, or Markdown file to get started.
+      </p>
+      <button
+        className="files-empty-state-cta"
+        onClick={onAddFiles}
+        aria-label="Add a file to get started"
+      >
+        <span aria-hidden="true">➕</span> Add a file
+      </button>
+    </div>
+  );
+}
+
 export function FilesPanel() {
   const { roots, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeRoot, setActiveRoot] = useState<FileRootRecord | null>(null);
-  // A-1: state for FileViewerModal
   const [viewerFile, setViewerFile] = useState<FileRecord | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
@@ -95,12 +116,10 @@ export function FilesPanel() {
     }));
   }
 
-  // A-1: open FileViewerModal with the selected FileRecord
   function handleOpenInViewer(file: FileRecord) {
     setViewerFile(file);
   }
 
-  // A-3: "Open in Chat" from FileViewerModal — dispatch new-chat-from-file
   function handleViewerOpenInChat(file: FileRecord, contextText: string) {
     window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
       detail: { previewText: contextText, name: file.name }
@@ -108,7 +127,6 @@ export function FilesPanel() {
     setViewerFile(null);
   }
 
-  // A-3: "Analyze in Chat" from FileViewerModal
   function handleViewerAnalyzeInChat(file: FileRecord) {
     window.dispatchEvent(new CustomEvent("studio:analyze-file", {
       detail: { fileId: file.id }
@@ -125,17 +143,17 @@ export function FilesPanel() {
 
       <div className="files-add-row">
         <button className="files-add-btn" onClick={addFolder} disabled={isIndexing}>
-          <span className="files-add-btn-icon">📁</span> Add Folder
+          <span className="files-add-btn-icon" aria-hidden="true">📁</span> Add Folder
         </button>
         <button className="files-add-btn" onClick={addFiles} disabled={isIndexing}>
-          <span className="files-add-btn-icon">📄</span> Add Files
+          <span className="files-add-btn-icon" aria-hidden="true">📄</span> Add Files
         </button>
       </div>
 
-      {error && <div className="files-error">{error}</div>}
+      {error && <div className="files-error" role="alert">{error}</div>}
 
       {isIndexing && progress && (
-        <div className="files-progress">
+        <div className="files-progress" role="status" aria-label="Indexing progress">
           <div className="files-progress-bar">
             <div
               className="files-progress-fill"
@@ -162,11 +180,8 @@ export function FilesPanel() {
         </div>
       ) : (
         !isIndexing && (
-          <div className="files-empty">
-            <span className="files-empty-icon">🗂️</span>
-            No indexed sources yet.
-            Add a folder or files above to get started.
-          </div>
+          // B-2: polished empty state with CTA
+          <FilesPanelEmptyState onAddFiles={addFiles} />
         )
       )}
 
@@ -176,6 +191,7 @@ export function FilesPanel() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search indexed files…"
+          aria-label="Search indexed files"
         />
         <button type="submit" className="files-search-btn" disabled={searching || !query.trim()}>
           {searching ? "…" : "Search"}
@@ -183,9 +199,9 @@ export function FilesPanel() {
       </form>
 
       {results.length > 0 && (
-        <div className="files-results-list">
+        <div className="files-results-list" role="list" aria-label="Search results">
           {results.map((r) => (
-            <div key={r.chunkId} className="files-snippet-card">
+            <div key={r.chunkId} className="files-snippet-card" role="listitem">
               <div className="files-snippet-path">{r.filePath}</div>
               <div className="files-snippet-score">score {r.score.toFixed(3)}</div>
               <pre className="files-snippet-text">{r.snippet}</pre>
@@ -194,7 +210,6 @@ export function FilesPanel() {
         </div>
       )}
 
-      {/* A-1: FilePreviewSheet now wires onOpenInViewer */}
       <FilePreviewSheet
         root={activeRoot}
         onClose={() => setActiveRoot(null)}
@@ -205,7 +220,6 @@ export function FilesPanel() {
         onOpenInViewer={handleOpenInViewer}
       />
 
-      {/* A-1: FileViewerModal — opens when viewerFile is set */}
       {viewerFile && (
         <FileViewerModal
           file={viewerFile}
