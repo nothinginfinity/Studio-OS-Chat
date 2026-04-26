@@ -150,7 +150,7 @@ function AssistantBubble({
 }
 
 // C-3: animated message bubble wrapper — slide-up + fade on first mount only
-function AnimatedBubble({ id, children }: { id: string; children: React.ReactNode }) {
+function AnimatedBubble({ id, role, children }: { id: string; role?: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
 
@@ -167,7 +167,12 @@ function AnimatedBubble({ id, children }: { id: string; children: React.ReactNod
   }, []);
 
   return (
-    <div ref={ref} data-bubble-id={id}>
+    <div
+      ref={ref}
+      data-bubble-id={id}
+      data-testid="message-bubble"
+      data-role={role}
+    >
       {children}
     </div>
   );
@@ -189,6 +194,7 @@ function MessageListEmptyState({ onSuggestedPrompt }: { onSuggestedPrompt?: (tex
               key={prompt}
               role="listitem"
               className="message-list-empty-chip"
+              data-testid="prompt-chip"
               onClick={() => onSuggestedPrompt(prompt)}
               aria-label={`Use suggested prompt: ${prompt}`}
             >
@@ -212,8 +218,7 @@ export function MessageList({ messages, onChartSpecsFound, csvRows = [], onSugge
       {messages.map((message) => {
         if (message.role === "tool") {
           return (
-            // C-3: wrap in AnimatedBubble
-            <AnimatedBubble key={message.id} id={message.id}>
+            <AnimatedBubble key={message.id} id={message.id} role="tool">
               <div className="message message-tool">
                 <ToolPill message={message} />
               </div>
@@ -221,8 +226,7 @@ export function MessageList({ messages, onChartSpecsFound, csvRows = [], onSugge
           );
         }
         return (
-          // C-3: wrap in AnimatedBubble — streaming tokens do NOT re-trigger (key is stable id)
-          <AnimatedBubble key={message.id} id={message.id}>
+          <AnimatedBubble key={message.id} id={message.id} role={message.role}>
             <div className={`message message-${message.role}`}>
               <div className="message-role">
                 {message.role === "assistant" ? "Studio OS" : "You"}

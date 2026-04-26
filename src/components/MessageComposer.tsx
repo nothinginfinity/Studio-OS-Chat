@@ -66,6 +66,7 @@ export function MessageComposer({
   return (
     <div className="composer">
       <textarea
+        data-testid="chat-input"
         rows={4}
         placeholder="Ask your local model something… (⌘↵ to send)"
         value={value}
@@ -83,6 +84,7 @@ export function MessageComposer({
           Save Prompt
         </button>
         <button
+          data-testid="chat-send-button"
           className="composer-send-btn"
           onClick={handleSend}
           disabled={disabled || !value.trim()}
