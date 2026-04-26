@@ -1,10 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CsvMeta } from "../lib/types";
 
 const VIRTUALIZATION_THRESHOLD = 2000;
-// Row height in px used by the virtualizer estimator.
-// Matches the CSS line-height of .csv-td (1 line of text + padding).
 const ESTIMATED_ROW_HEIGHT = 32;
 
 interface Props {
@@ -21,7 +19,6 @@ export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvM
 
   return (
     <div className="csv-table-wrap">
-      {/* ── Meta bar ── */}
       {csvMeta && (
         <div className="csv-meta-bar">
           <span className="csv-meta-pill">{csvMeta.rowCount.toLocaleString()} rows</span>
@@ -34,8 +31,6 @@ export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvM
           ))}
         </div>
       )}
-
-      {/* ── Table: virtualized (large) or paginated (small) ── */}
       {useVirtual
         ? <VirtualizedTable rows={rows} headers={headers} />
         : <PaginatedTable
@@ -47,6 +42,53 @@ export function CsvTableView({ rows, headers, page, pageSize, onPageChange, csvM
           />
       }
     </div>
+  );
+}
+
+// ─── B-3: Jump-to-row input ───────────────────────────────────────────────────
+
+function JumpToRow({
+  totalRows,
+  onJump,
+}: {
+  totalRows: number;
+  onJump: (rowIndex: number) => void;
+}) {
+  const [inputVal, setInputVal] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = parseInt(inputVal, 10);
+    if (!isNaN(n) && n >= 1 && n <= totalRows) {
+      onJump(n - 1); // convert 1-based user input to 0-based index
+      setInputVal("");
+    }
+  }
+
+  return (
+    <form
+      className="csv-jump-row"
+      onSubmit={handleSubmit}
+      aria-label="Jump to row"
+    >
+      <label className="csv-jump-label" htmlFor="csv-jump-input">
+        Jump to row:
+      </label>
+      <input
+        id="csv-jump-input"
+        className="csv-jump-input"
+        type="number"
+        min={1}
+        max={totalRows}
+        value={inputVal}
+        onChange={(e) => setInputVal(e.target.value)}
+        placeholder={`1–${totalRows.toLocaleString()}`}
+        aria-label={`Jump to row (1 to ${totalRows.toLocaleString()})`}
+      />
+      <button type="submit" className="csv-jump-btn" aria-label="Go to row">
+        Go
+      </button>
+    </form>
   );
 }
 
@@ -63,14 +105,16 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
     overscan: 10,
   });
 
+  // B-3: Jump-to-row handler — scrollToIndex via virtualizer
+  const handleJump = useCallback((rowIndex: number) => {
+    virtualizer.scrollToIndex(rowIndex, { align: "start", behavior: "smooth" });
+  }, [virtualizer]);
+
   const totalHeight = virtualizer.getTotalSize();
   const virtualItems = virtualizer.getVirtualItems();
 
   return (
     <>
-      {/* E.1-F2: sr-only accessible summary for AT users — virtual table loses semantic structure
-          due to display:block tbody required by the position-based virtualizer.
-          The paginated path below the threshold is fully accessible. */}
       <p className="sr-only" role="note">
         Large dataset: {rows.length.toLocaleString()} rows,{" "}
         {headers.length} column{headers.length !== 1 ? "s" : ""}.
@@ -78,8 +122,9 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
         to enable the paginated view.
       </p>
 
-      {/* E.1-F2: aria-hidden hides the virtual scroll container from AT since
-          display:block on <tbody> breaks table semantics for screen readers. */}
+      {/* B-3: Jump-to-row control above the virtual scroll container */}
+      <JumpToRow totalRows={rows.length} onJump={handleJump} />
+
       <div
         ref={scrollRef}
         className="csv-table-scroll"
@@ -89,7 +134,6 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
         <table className="csv-table">
           <thead>
             <tr>
-              {/* E.1-F1: scope="col" added — associates each header with its column for AT */}
               {headers.map(h => (
                 <th key={h} className="csv-th" scope="col">{h}</th>
               ))}
@@ -147,7 +191,6 @@ function PaginatedTable({
         <table className="csv-table">
           <thead>
             <tr>
-              {/* E.1-F1: scope="col" added — associates each header with its column for AT */}
               {headers.map(h => (
                 <th key={h} className="csv-th" scope="col">{h}</th>
               ))}

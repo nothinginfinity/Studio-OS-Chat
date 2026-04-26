@@ -5,6 +5,7 @@ import type { SearchResult, FileRecord, FileRootRecord } from "../lib/types";
 import { FilePreviewSheet } from "./FilePreviewSheet";
 import { FileViewerModal } from "./FileViewerModal";
 import { useLongPress } from "../hooks/useLongPress";
+import { StorageQuotaBar } from "./StorageQuotaBar";
 import "../files.css";
 import "../phase4.css";
 
@@ -64,7 +65,6 @@ function FileRootCard({
   );
 }
 
-// B-2: FilesPanel empty state component
 function FilesPanelEmptyState({ onAddFiles }: { onAddFiles: () => void }) {
   return (
     <div className="files-empty-state" role="region" aria-label="No files indexed">
@@ -141,6 +141,9 @@ export function FilesPanel() {
         <h2 className="files-panel-title">Files</h2>
       </div>
 
+      {/* C-3: Storage quota bar */}
+      <StorageQuotaBar />
+
       <div className="files-add-row">
         <button className="files-add-btn" onClick={addFolder} disabled={isIndexing}>
           <span className="files-add-btn-icon" aria-hidden="true">📁</span> Add Folder
@@ -180,7 +183,6 @@ export function FilesPanel() {
         </div>
       ) : (
         !isIndexing && (
-          // B-2: polished empty state with CTA
           <FilesPanelEmptyState onAddFiles={addFiles} />
         )
       )}
