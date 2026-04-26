@@ -147,6 +147,8 @@ export function IngestDropZone() {
               mode === m.value ? " ingest-mode-btn--active" : ""
             }`}
             onClick={() => setMode(m.value)}
+            // E.3-F4: aria-pressed exposes selected state to AT — 4.1.2 Name, Role, Value
+            aria-pressed={mode === m.value}
           >
             {m.label}
           </button>
@@ -166,9 +168,21 @@ export function IngestDropZone() {
         onDrop={onDrop}
         onClick={() => inputRef.current?.click()}
         role="button"
-        aria-label="Drop files or click to upload"
+        // E.3-F2: Dynamic aria-label exposes drag-active state to AT — 4.1.2 Name, Role, Value
+        aria-label={
+          dragging
+            ? "Drop files now — ready to receive"
+            : "Drop files or click to upload"
+        }
         tabIndex={0}
-        onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+        onKeyDown={(e) => {
+          // E.3-F1: Space key triggers upload (ARIA APG button pattern requires Enter + Space)
+          // preventDefault on Space prevents unintended page scroll
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
       >
         <span className="ingest-dropzone-icon">📂</span>
         <span className="ingest-dropzone-label">Drop images or PDFs here</span>
@@ -187,13 +201,20 @@ export function IngestDropZone() {
 
       {/* File status list */}
       {files.length > 0 && (
-        <ul className="ingest-file-list">
+        // E.3-F3: role="log" + aria-live="polite" announces status updates to AT — 4.1.3 Status Messages
+        <ul
+          className="ingest-file-list"
+          role="log"
+          aria-live="polite"
+          aria-label="File processing status"
+        >
           {files.map((f) => (
             <li
               key={f.name}
               className={`ingest-file-item ingest-file-item--${f.status}`}
             >
-              <span className="ingest-file-icon">{statusIcon(f.status)}</span>
+              {/* E.3-F5: aria-hidden removes emoji from AT read order — status conveyed by f.message text — 1.3.1 */}
+              <span className="ingest-file-icon" aria-hidden="true">{statusIcon(f.status)}</span>
               <span className="ingest-file-name">{f.name}</span>
               {f.message && (
                 <span className="ingest-file-msg">{f.message}</span>
