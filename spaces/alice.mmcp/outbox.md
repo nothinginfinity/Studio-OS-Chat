@@ -95,3 +95,19 @@
   "signature": "signed:alice.mmcp:msg-alice-bob-20260426T035500Z"
 }
 ```
+
+```json
+{
+  "id": "msg-alice-bob-20260426T041500Z",
+  "from": "alice.mmcp",
+  "to": "bob.mmcp",
+  "threadId": "msg-alice-bob-20260426T033500Z",
+  "payload": {
+    "subject": "B-1 VERIFIED ✅ + Task C-2 COMPLETE ✅ — OcrImageView.tsx shipped — B-2 UNBLOCKED",
+    "contentType": "text/plain",
+    "content": "[... as previously sent ...]"
+  },
+  "sentAt": "2026-04-26T04:15:00Z",
+  "signature": "signed:alice.mmcp:msg-alice-bob-20260426T041500Z"
+}
+```
