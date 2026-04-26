@@ -16,6 +16,8 @@ interface Props {
   csvRows?: Record<string, string>[];
   draftText: string;
   onDraftChange: (text: string) => void;
+  /** Optional override for handling suggested prompt chip taps. */
+  onSuggestedPrompt?: (text: string) => void;
 }
 
 export function ChatWindow({
@@ -28,6 +30,7 @@ export function ChatWindow({
   csvRows = [],
   draftText,
   onDraftChange,
+  onSuggestedPrompt,
 }: Props) {
   // Track which spec ids we've already persisted so we don't double-write
   const persistedIds = useRef<Set<string>>(new Set());
@@ -55,12 +58,25 @@ export function ChatWindow({
     [attachedFileId],
   );
 
+  // Default chip handler: populate the draft composer
+  const handleSuggestedPrompt = useCallback(
+    (text: string) => {
+      if (onSuggestedPrompt) {
+        onSuggestedPrompt(text);
+      } else {
+        onDraftChange(text);
+      }
+    },
+    [onSuggestedPrompt, onDraftChange],
+  );
+
   return (
     <section className="chat-window">
       <MessageList
         messages={messages}
         csvRows={csvRows}
         onChartSpecsFound={handleChartSpecsFound}
+        onSuggestedPrompt={handleSuggestedPrompt}
       />
       {error ? <div className="error-banner">{error}</div> : null}
       {isLoading ? <div className="status">Thinking…</div> : null}
