@@ -96,6 +96,7 @@ export function MessageComposer({
           {disabled && (
             <span
               role="tooltip"
+              className="send-offline-tip"
               style={{
                 position: 'absolute',
                 bottom: 'calc(100% + 6px)',
@@ -109,7 +110,7 @@ export function MessageComposer({
                 pointerEvents: 'none',
                 opacity: 0,
                 transition: 'opacity 120ms ease',
-              }}\n              className="send-offline-tip"
+              }}
             >
               Requires an internet connection
             </span>
