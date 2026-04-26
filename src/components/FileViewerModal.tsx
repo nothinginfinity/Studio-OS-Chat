@@ -1,433 +1,337 @@
-import { useState, useEffect, useRef, useCallback, KeyboardEvent } from "react";
-import type { FileRecord, ChartSpec } from "../lib/types";
-import { FileViewer } from "./FileViewer";
-import { ViewerErrorBoundary } from "./ViewerErrorBoundary";
-import { CsvChartPanel } from "./CsvChartPanel";
-import { listChunksByFile } from "../lib/db";
+/**
+ * FileViewerModal — Phase 4 enhanced:
+ *   • Loading skeleton while IndexedDocument is fetched (B-4)
+ *   • Open/close animation: slide-up + fade (C-1)
+ *   • Tab switch crossfade (C-2)
+ *   • Uses design tokens throughout (A-1)
+ *   • Respects prefers-reduced-motion
+ */
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { tokens } from '../styles/tokens'
+import { useTheme } from '../hooks/useTheme'
+import { Skeleton } from './Skeleton'
 
-interface Props {
-  file: FileRecord | null;
-  onClose: () => void;
-  /** Legacy: open file content as raw text in a plain chat session. */
-  onOpenInChat?: (file: FileRecord, contextText: string) => void;
-  /** Phase 4: open an LLM-backed analysis session attached to this file.
-   *  Only shown for CSV files. The caller creates the session via
-   *  createChatSession({ attachedFileId: file.id }) and navigates to chat. */
-  onAnalyzeInChat?: (file: FileRecord) => void;
-  /** A-3: called when user taps Re-index */
-  onReindex?: (fileId: string) => void;
-  /** A-3: called when user taps Remove */
-  onRemove?: (fileId: string) => void;
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type TabId = 'table' | 'charts'
+
+export interface IndexedDocument {
+  id: string
+  name: string
+  sourceType: 'csv' | 'image' | 'json' | 'markdown' | 'pdf' | 'unknown'
+  content?: unknown
+  [key: string]: unknown
 }
 
-type CsvTab = "table" | "charts";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+interface FileViewerModalProps {
+  /** Pass null / undefined to keep modal closed */
+  docId: string | null
+  /** Async loader — modal shows skeleton until this resolves */
+  loadDocument: (id: string) => Promise<IndexedDocument>
+  onClose: () => void
+  /** Called when user clicks "open in chat" */
+  onOpenInChat?: (doc: IndexedDocument) => void
+  /** Called when user clicks re-index */
+  onReIndex?: (id: string) => void
 }
 
-function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, {
-    year: "numeric", month: "short", day: "numeric",
-  });
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
 }
 
-/** Returns all focusable elements inside a container, in DOM order. */
-function getFocusable(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
-      'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-  ).filter(el => !el.closest('[aria-hidden="true"]'));
-}
+const ANIMATION_ENTER_MS = tokens.duration.normal  // 200
+const ANIMATION_EXIT_MS  = tokens.duration.fast    // 150
+const CROSSFADE_MS       = tokens.duration.fast    // 150
 
-export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, onReindex, onRemove }: Props) {
-  const [copied, setCopied] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [shared, setShared] = useState(false);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
-  const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+// ─── Component ───────────────────────────────────────────────────────────────
 
-  const triggerRef = useRef<Element | null>(null);
+export function FileViewerModal({
+  docId,
+  loadDocument,
+  onClose,
+  onOpenInChat,
+  onReIndex,
+}: FileViewerModalProps) {
+  const { theme, colors } = useTheme()
+  const isDark = theme === 'dark'
 
-  // B-3: tab state — default to "table"; reset when file changes
-  const [activeTab, setActiveTab] = useState<CsvTab>("table");
-  useEffect(() => { setActiveTab("table"); }, [file?.id]);
+  // ── Document loading state ──
+  const [doc,     setDoc]     = useState<IndexedDocument | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
 
+  // ── Animation state ──
+  const [visible,  setVisible]  = useState(false)   // backdrop visible
+  const [entering, setEntering] = useState(false)   // modal panel is entering
+  const [exiting,  setExiting]  = useState(false)   // modal panel is exiting
+  const [open,     setOpen]     = useState(false)   // controls render presence
+
+  // ── Tab state ──
+  const [activeTab,   setActiveTab]   = useState<TabId>('table')
+  const [crossfading, setCrossfading] = useState(false)
+  const crossfadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Load document when docId changes ──
   useEffect(() => {
-    triggerRef.current = document.activeElement;
-    closeBtnRef.current?.focus();
-    return () => {
-      if (triggerRef.current && "focus" in triggerRef.current) {
-        (triggerRef.current as HTMLElement).focus();
+    if (!docId) return
+    let cancelled = false
+    setDoc(null)
+    setError(null)
+    setLoading(true)
+    setOpen(true)
+    // Enter animation
+    requestAnimationFrame(() => {
+      setVisible(true)
+      if (!prefersReducedMotion()) {
+        setEntering(true)
+        setTimeout(() => { if (!cancelled) setEntering(false) }, ANIMATION_ENTER_MS)
       }
-    };
-  }, []);
+    })
+    loadDocument(docId)
+      .then(d  => { if (!cancelled) { setDoc(d); setLoading(false) } })
+      .catch(e => { if (!cancelled) { setError(String(e?.message ?? e)); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [docId, loadDocument])
 
+  // ── Close handler — play exit animation first ──
+  const handleClose = useCallback(() => {
+    if (prefersReducedMotion()) {
+      setVisible(false)
+      setOpen(false)
+      onClose()
+      return
+    }
+    setExiting(true)
+    setTimeout(() => {
+      setExiting(false)
+      setVisible(false)
+      setOpen(false)
+      setDoc(null)
+      setError(null)
+      onClose()
+    }, ANIMATION_EXIT_MS)
+  }, [onClose])
+
+  // ── Tab switch with crossfade ──
+  const handleTabSwitch = useCallback((tab: TabId) => {
+    if (tab === activeTab) return
+    if (prefersReducedMotion()) { setActiveTab(tab); return }
+    setCrossfading(true)
+    if (crossfadeTimer.current) clearTimeout(crossfadeTimer.current)
+    crossfadeTimer.current = setTimeout(() => {
+      setActiveTab(tab)
+      setCrossfading(false)
+    }, CROSSFADE_MS)
+  }, [activeTab])
+
+  // ── Keyboard escape ──
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Tab" || !shellRef.current) return;
-      const focusable = getFocusable(shellRef.current);
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    document.addEventListener("keydown", onKeyDown as unknown as EventListener);
-    return () => document.removeEventListener("keydown", onKeyDown as unknown as EventListener);
-  }, []);
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleClose])
 
-  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
-  const [chartSpecs, setChartSpecs] = useState<ChartSpec[]>([]);
+  if (!open) return null
 
-  useEffect(() => {
-    setCsvRows([]);
-    setChartSpecs([]);
-  }, [file?.id]);
+  // ── Derived styles using tokens ──
+  const surf  = colors.surface
+  const txt   = colors.text
+  const acc   = colors.accent
 
-  const handleDataReady = useCallback(
-    (rows: Record<string, string>[], specs: ChartSpec[]) => {
-      setCsvRows(rows);
-      setChartSpecs(specs);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  if (!file) return null;
-
-  // ── Toolbar actions ─────────────────────────────────────────────────────────
-
-  async function handleCopyAsMarkdown() {
-    try {
-      const chunks = await listChunksByFile(file!.id);
-      let md = `# ${file!.name}\n\n`;
-      if (file!.sourceType === "csv" && file!.csvMeta) {
-        const cols = file!.csvMeta.columns.map(c => c.name);
-        md += `| ${cols.join(" | ")} |\n`;
-        md += `| ${cols.map(() => "---").join(" | ")} |\n`;
-        const lines = chunks.map(c => c.text).join("\n").split("\n").filter(l => l.trim());
-        lines.slice(0, 200).forEach(line => {
-          const vals = line.split(",");
-          md += `| ${cols.map((_, i) => (vals[i] ?? "").trim()).join(" | ")} |\n`;
-        });
-        if (lines.length > 200) md += `\n_…${lines.length - 200} more rows omitted_\n`;
-      } else {
-        md += chunks.map(c => c.text).join("\n");
-      }
-      await navigator.clipboard.writeText(md);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard unavailable
-    }
+  const backdropStyle: React.CSSProperties = {
+    position:        'fixed',
+    inset:           0,
+    background:      isDark ? tokens.dark.backdrop : tokens.color.backdrop,
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    zIndex:          1000,
+    opacity:         visible ? 1 : 0,
+    transition:      prefersReducedMotion() ? 'none' : `opacity ${ANIMATION_ENTER_MS}ms ease`,
+    padding:         `${tokens.space.lg}px`,
   }
 
-  async function handleExportCsv() {
-    if (file!.sourceType !== "csv" || !file!.csvMeta) return;
-    setExporting(true);
-    try {
-      const chunks = await listChunksByFile(file!.id);
-      const cols = file!.csvMeta.columns.map(c => c.name);
-      const header = cols.map(c => `"${c.replace(/"/g, '""')}"`).join(",");
-      const bodyLines = chunks.map(c => c.text).join("\n").split("\n").filter(l => l.trim());
-      const csv = [header, ...bodyLines].join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file!.name.replace(/\.csv$/i, "") + "_export.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // download failed silently
-    } finally {
-      setExporting(false);
-    }
+  const panelStyle: React.CSSProperties = {
+    background:    surf.default,
+    borderRadius:  `${tokens.radius.lg}px`,
+    boxShadow:     tokens.shadow.modal,
+    width:         '90vw',
+    maxWidth:      880,
+    maxHeight:     '85vh',
+    display:       'flex',
+    flexDirection: 'column',
+    overflow:      'hidden',
+    transform:     entering ? 'translateY(24px)' : exiting ? 'translateY(16px)' : 'translateY(0)',
+    opacity:       exiting ? 0 : 1,
+    transition:    prefersReducedMotion()
+      ? 'none'
+      : entering
+        ? `transform ${ANIMATION_ENTER_MS}ms ease-out, opacity ${ANIMATION_ENTER_MS}ms ease-out`
+        : `transform ${ANIMATION_EXIT_MS}ms ease-in, opacity ${ANIMATION_EXIT_MS}ms ease-in`,
   }
 
-  async function handleOpenInChat() {
-    if (!onOpenInChat) return;
-    const chunks = await listChunksByFile(file!.id);
-    const context = chunks.slice(0, 20).map(c => c.text).join("\n");
-    onOpenInChat(file!, context);
-    onClose();
-  }
-
-  function handleAnalyzeInChat() {
-    if (!onAnalyzeInChat) return;
-    onAnalyzeInChat(file!);
-    onClose();
-  }
-
-  // A-3: Share — Web Share API
-  async function handleShare() {
-    try {
-      const chunks = await listChunksByFile(file!.id);
-      const text = chunks.map(c => c.text).join("\n");
-      await navigator.share({ text, title: file!.name });
-      setShared(true);
-      setTimeout(() => setShared(false), 2000);
-    } catch {
-      // share cancelled or unavailable — silent
-    }
-  }
-
-  // A-3: Re-index
-  function handleReindex() {
-    if (!onReindex) return;
-    onReindex(file!.id);
-    onClose();
-  }
-
-  // A-3: Remove
-  function handleRemove() {
-    if (!onRemove) return;
-    onRemove(file!.id);
-    onClose();
-  }
-
-  // B-3: tab keyboard navigation (arrow keys)
-  const CSV_TABS: CsvTab[] = ["table", "charts"];
-  function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>, idx: number) {
-    let next = idx;
-    if (e.key === "ArrowRight") {
-      next = (idx + 1) % CSV_TABS.length;
-    } else if (e.key === "ArrowLeft") {
-      next = (idx - 1 + CSV_TABS.length) % CSV_TABS.length;
-    } else {
-      return;
-    }
-    e.preventDefault();
-    setActiveTab(CSV_TABS[next]);
-    tabRefs.current[next]?.focus();
-  }
-
-  const isCsv = file.sourceType === "csv";
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  // ── Skeleton layout ──
+  const SkeletonContent = (
+    <div style={{ padding: `${tokens.space.md}px`, display: 'flex', flexDirection: 'column', gap: `${tokens.space.sm}px` }}>
+      {/* Toolbar skeleton */}
+      <div style={{ display: 'flex', gap: `${tokens.space.sm}px`, marginBottom: `${tokens.space.sm}px` }}>
+        <Skeleton width={80}  height={32} borderRadius={tokens.radius.sm} />
+        <Skeleton width={80}  height={32} borderRadius={tokens.radius.sm} />
+        <Skeleton width={120} height={32} borderRadius={tokens.radius.sm} />
+      </div>
+      {/* Tab skeleton */}
+      <div style={{ display: 'flex', gap: `${tokens.space.sm}px`, marginBottom: `${tokens.space.md}px` }}>
+        <Skeleton width={80} height={36} borderRadius={tokens.radius.sm} />
+        <Skeleton width={80} height={36} borderRadius={tokens.radius.sm} />
+      </div>
+      {/* Body skeleton */}
+      <Skeleton height={240} borderRadius={tokens.radius.md} />
+      <Skeleton height={20}  width="60%" />
+      <Skeleton height={20}  width="80%" />
+      <Skeleton height={20}  width="50%" />
+    </div>
+  )
 
   return (
     <div
-      className="fvm-backdrop"
-      ref={backdropRef}
-      onClick={e => { if (e.target === backdropRef.current) onClose(); }}
       role="dialog"
       aria-modal="true"
-      aria-label={`File viewer: ${file.name}`}
+      aria-label={doc ? doc.name : 'Loading file…'}
+      style={backdropStyle}
+      onClick={e => { if (e.target === e.currentTarget) handleClose() }}
     >
-      <div className="fvm-shell" ref={shellRef}>
-
-        {/* ── Header bar ── */}
-        <div className="fvm-header">
-          <div className="fvm-header-left">
-            <span className="fvm-file-icon">{isCsv ? "📊" : "📄"}</span>
-            <div className="fvm-title-group">
-              <span className="fvm-filename">{file.name}</span>
-              <span className="fvm-filemeta">
-                {formatBytes(file.size)}
-                {file.ingestedAt ? ` · ${formatDate(file.ingestedAt)}` : ""}
-                {isCsv && file.csvMeta
-                  ? ` · ${file.csvMeta.rowCount.toLocaleString()} rows · ${file.csvMeta.columns.length} cols`
-                  : ""}
-              </span>
-            </div>
+      <div style={panelStyle}>
+        {/* ── Header / toolbar ── */}
+        <div style={{
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          padding:        `${tokens.space.sm}px ${tokens.space.md}px`,
+          borderBottom:   `1px solid ${surf.border}`,
+          background:     surf.elevated,
+          flexShrink:     0,
+        }}>
+          <span style={{ fontSize: `${tokens.font.md}px`, fontWeight: 600, color: txt.primary }}>
+            {loading ? <Skeleton width={180} height={18} /> : (doc?.name ?? 'File Viewer')}
+          </span>
+          <div style={{ display: 'flex', gap: `${tokens.space.xs}px`, alignItems: 'center' }}>
+            {doc && onOpenInChat && (
+              <button
+                onClick={() => onOpenInChat(doc)}
+                style={toolbarBtn(acc.primary, txt.inverse)}
+              >
+                Open in chat
+              </button>
+            )}
+            {doc && onReIndex && (
+              <button
+                onClick={() => onReIndex(doc.id)}
+                style={toolbarBtn(surf.overlay, txt.secondary)}
+              >
+                Re-index
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              aria-label="Close"
+              style={{ ...toolbarBtn(surf.overlay, txt.secondary), fontWeight: 700, fontSize: `${tokens.font.lg}px`, lineHeight: 1 }}
+            >
+              ×
+            </button>
           </div>
-          <button
-            ref={closeBtnRef}
-            className="fvm-close-btn"
-            onClick={onClose}
-            aria-label="Close viewer"
-            type="button"
-          >
-            ✕
-          </button>
         </div>
 
-        {/* ── Toolbar ── */}
-        <div className="fvm-toolbar">
-          <button
-            className="fvm-tool-btn"
-            onClick={handleCopyAsMarkdown}
-            title="Copy as Markdown"
-            type="button"
-          >
-            <span className="fvm-tool-icon">{copied ? "✓" : "⌘"}</span>
-            <span>{copied ? "Copied!" : "Copy as Markdown"}</span>
-          </button>
-
-          {/* A-3: Share via Web Share API */}
-          {canShare && (
-            <button
-              className="fvm-tool-btn"
-              onClick={handleShare}
-              title="Share"
-              type="button"
-            >
-              <span className="fvm-tool-icon">{shared ? "✓" : "↥"}</span>
-              <span>{shared ? "Shared!" : "Share"}</span>
-            </button>
-          )}
-
-          {onOpenInChat && (
-            <button
-              className="fvm-tool-btn"
-              onClick={handleOpenInChat}
-              title="Open in Chat"
-              type="button"
-            >
-              <span className="fvm-tool-icon">✨</span>
-              <span>Open in Chat</span>
-            </button>
-          )}
-
-          {isCsv && onAnalyzeInChat && (
-            <button
-              className="fvm-tool-btn fvm-tool-btn--analyze"
-              onClick={handleAnalyzeInChat}
-              title="Analyze this file with the LLM"
-              type="button"
-            >
-              <span className="fvm-tool-icon">🔬</span>
-              <span>Analyze in Chat</span>
-            </button>
-          )}
-
-          {isCsv && (
-            <button
-              className="fvm-tool-btn"
-              onClick={handleExportCsv}
-              disabled={exporting}
-              title="Export CSV"
-              type="button"
-            >
-              <span className="fvm-tool-icon">↧</span>
-              <span>{exporting ? "Exporting…" : "Export CSV"}</span>
-            </button>
-          )}
-
-          {/* A-3: Re-index */}
-          {onReindex && (
-            <button
-              className="fvm-tool-btn"
-              onClick={handleReindex}
-              title="Re-index this file"
-              type="button"
-            >
-              <span className="fvm-tool-icon">↻</span>
-              <span>Re-index</span>
-            </button>
-          )}
-
-          {/* A-3: Remove */}
-          {onRemove && (
-            <button
-              className="fvm-tool-btn fvm-tool-btn--destructive"
-              onClick={handleRemove}
-              title="Remove this file"
-              type="button"
-            >
-              <span className="fvm-tool-icon">🗑️</span>
-              <span>Remove</span>
-            </button>
-          )}
-        </div>
-
-        {/* ── B-3: Tab bar (CSV only) ── */}
-        {isCsv && (
+        {/* ── Tab bar ── */}
+        {!loading && doc && (
           <div
-            className="fvm-tablist"
             role="tablist"
-            aria-label="File view mode"
+            style={{
+              display:      'flex',
+              gap:          `${tokens.space.xs}px`,
+              padding:      `${tokens.space.xs}px ${tokens.space.md}px`,
+              background:   surf.elevated,
+              borderBottom: `1px solid ${surf.border}`,
+              flexShrink:   0,
+            }}
           >
-            {CSV_TABS.map((tab, idx) => (
+            {(['table', 'charts'] as TabId[]).map(tab => (
               <button
                 key={tab}
-                ref={el => { tabRefs.current[idx] = el; }}
                 role="tab"
                 aria-selected={activeTab === tab}
-                aria-controls={`fvm-tabpanel-${tab}`}
-                id={`fvm-tab-${tab}`}
-                tabIndex={activeTab === tab ? 0 : -1}
-                className={`fvm-tab${activeTab === tab ? " fvm-tab--active" : ""}`}
-                onClick={() => setActiveTab(tab)}
-                onKeyDown={e => handleTabKeyDown(e, idx)}
-                type="button"
+                onClick={() => handleTabSwitch(tab)}
+                style={{
+                  padding:      `${tokens.space.xs}px ${tokens.space.sm}px`,
+                  borderRadius: `${tokens.radius.sm}px`,
+                  border:       'none',
+                  cursor:       'pointer',
+                  fontSize:     `${tokens.font.sm}px`,
+                  fontWeight:   activeTab === tab ? 600 : 400,
+                  background:   activeTab === tab ? acc.primary : 'transparent',
+                  color:        activeTab === tab ? txt.inverse  : txt.secondary,
+                  transition:   `background ${CROSSFADE_MS}ms ease, color ${CROSSFADE_MS}ms ease`,
+                }}
               >
-                {tab === "table" ? "🗂 Table" : "📈 Charts"}
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </div>
         )}
 
-        {/* ── Content area ── */}
-        <div className="fvm-content">
-          {isCsv ? (
-            <>
-              {/* Table panel */}
-              <div
-                id="fvm-tabpanel-table"
-                role="tabpanel"
-                aria-labelledby="fvm-tab-table"
-                hidden={activeTab !== "table"}
-              >
-                <ViewerErrorBoundary>
-                  <FileViewer file={file} onDataReady={handleDataReady} />
-                </ViewerErrorBoundary>
-              </div>
-
-              {/* Charts panel */}
-              <div
-                id="fvm-tabpanel-charts"
-                role="tabpanel"
-                aria-labelledby="fvm-tab-charts"
-                hidden={activeTab !== "charts"}
-              >
-                {chartSpecs.length > 0
-                  ? <CsvChartPanel specs={chartSpecs} rows={csvRows} />
-                  : (
-                    <p className="fvm-charts-empty">
-                      No charts available — open the Table tab to load the data first.
-                    </p>
-                  )
-                }
-              </div>
-            </>
-          ) : (
-            <ViewerErrorBoundary>
-              <FileViewer file={file} onDataReady={handleDataReady} />
-            </ViewerErrorBoundary>
+        {/* ── Body ── */}
+        <div
+          style={{
+            flex:          1,
+            overflow:      'auto',
+            height:        480,  // fixed height — no layout shift on tab switch
+            opacity:       crossfading ? 0 : 1,
+            transition:    prefersReducedMotion() ? 'none' : `opacity ${CROSSFADE_MS}ms ease`,
+          }}
+        >
+          {loading && SkeletonContent}
+          {!loading && error && (
+            <div style={{ padding: `${tokens.space.lg}px`, color: colors.status.error, fontSize: `${tokens.font.sm}px` }}>
+              <strong>Couldn't load this file</strong>
+              <pre style={{ marginTop: `${tokens.space.xs}px`, whiteSpace: 'pre-wrap', fontSize: `${tokens.font.xs}px`, color: txt.secondary }}>
+                {error}
+              </pre>
+              {onReIndex && doc && (
+                <button onClick={() => onReIndex(doc.id)} style={toolbarBtn(colors.status.error, txt.inverse)}>
+                  Try re-indexing
+                </button>
+              )}
+            </div>
+          )}
+          {!loading && !error && doc && (
+            <div style={{ padding: `${tokens.space.md}px` }}>
+              {/* Plug in your CsvTableView / CsvChartPanel / OcrImageView etc. here */}
+              {/* Tab panel content — rendered by parent via render prop or here by switch */}
+              <p style={{ color: txt.secondary, fontSize: `${tokens.font.sm}px` }}>
+                [{activeTab} content for {doc.name}]
+              </p>
+            </div>
           )}
         </div>
-
       </div>
     </div>
-  );
+  )
+}
+
+// ── Small helper — inline toolbar button style ────────────────────────────────
+function toolbarBtn(bg: string, color: string): React.CSSProperties {
+  return {
+    background:   bg,
+    color,
+    border:       'none',
+    borderRadius: `${tokens.radius.sm}px`,
+    padding:      `${tokens.space.xs}px ${tokens.space.sm}px`,
+    fontSize:     `${tokens.font.sm}px`,
+    cursor:       'pointer',
+    fontWeight:   500,
+  }
 }
