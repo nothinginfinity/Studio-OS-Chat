@@ -3,6 +3,7 @@ import type { ChatMessage, ChartSpec } from "../lib/types";
 import { MessageList } from "./MessageList";
 import { MessageComposer } from "./MessageComposer";
 import { listAllFiles, putFile } from "../lib/db";
+import { useNetworkStatus } from "../hooks/useNetworkStatus";
 
 interface Props {
   messages: ChatMessage[];
@@ -32,6 +33,8 @@ export function ChatWindow({
   onDraftChange,
   onSuggestedPrompt,
 }: Props) {
+  const { isOnline } = useNetworkStatus();
+
   // Track which spec ids we've already persisted so we don't double-write
   const persistedIds = useRef<Set<string>>(new Set());
 
@@ -70,6 +73,11 @@ export function ChatWindow({
     [onSuggestedPrompt, onDraftChange],
   );
 
+  // Composer is disabled while the LLM is responding OR while offline.
+  // When disabled===true, MessageComposer renders [role=tooltip] with
+  // "Requires an internet connection" — satisfying chat.spec.ts offline assertions.
+  const composerDisabled = isLoading || !isOnline;
+
   return (
     <section className="chat-window">
       <MessageList
@@ -82,7 +90,7 @@ export function ChatWindow({
       {isLoading ? <div className="status">Thinking…</div> : null}
       <MessageComposer
         onSend={onSend}
-        disabled={isLoading}
+        disabled={composerDisabled}
         value={draftText}
         onChange={onDraftChange}
         sessionId={sessionId}
