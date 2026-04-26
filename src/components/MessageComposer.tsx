@@ -17,13 +17,10 @@ export function MessageComposer({
   onChange,
   sessionId,
 }: Props) {
-  const [saving, setSaving] = [false, (_: boolean) => {}];
   const savingRef = useRef(false);
-  const [savedFlash, setSavedFlash] = [false, (_: boolean) => {}];
   const savedFlashRef = useRef(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Use local refs for saving/flash since we don't need re-renders for those
   async function handleSend() {
     const next = value.trim();
     if (!next) return;
@@ -83,15 +80,44 @@ export function MessageComposer({
         >
           Save Prompt
         </button>
-        <button
-          data-testid="chat-send-button"
-          className="composer-send-btn"
-          onClick={handleSend}
-          disabled={disabled || !value.trim()}
+        {/* Wrap in a span so hover still fires on disabled button */}
+        <span
+          className="send-btn-wrap"
+          style={{ position: 'relative', display: 'inline-block' }}
         >
-          Send
-        </button>
+          <button
+            data-testid="chat-send-button"
+            className="composer-send-btn"
+            onClick={handleSend}
+            disabled={disabled || !value.trim()}
+          >
+            Send
+          </button>
+          {disabled && (
+            <span
+              role="tooltip"
+              style={{
+                position: 'absolute',
+                bottom: 'calc(100% + 6px)',
+                right: 0,
+                background: '#1c1b19',
+                color: '#f9f8f5',
+                fontSize: '0.75rem',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                opacity: 0,
+                transition: 'opacity 120ms ease',
+              }}\n              className="send-offline-tip"
+            >
+              Requires an internet connection
+            </span>
+          )}
+        </span>
       </div>
+      {/* CSS to show tooltip on wrapper hover */}
+      <style>{`.send-btn-wrap:hover .send-offline-tip { opacity: 1 !important; }`}</style>
     </div>
   );
 }

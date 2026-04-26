@@ -38,7 +38,6 @@ const DEFAULT_ROOT = "default";
 export function IngestDropZone() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [dragging, setDragging] = useState(false);
-  // C-4: track drop-success flash
   const [dropSuccess, setDropSuccess] = useState(false);
   const [mode, setMode] = useState<OCRMode>("screenshot");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -137,7 +136,6 @@ export function IngestDropZone() {
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragging(false);
-      // C-4: trigger drop-success flash
       setDropSuccess(true);
       if (dropSuccessTimer.current) clearTimeout(dropSuccessTimer.current);
       dropSuccessTimer.current = setTimeout(() => setDropSuccess(false), 300);
@@ -160,7 +158,6 @@ export function IngestDropZone() {
     { value: "receipt", label: "Receipt" },
   ];
 
-  // C-4: build dropzone class list
   const dropzoneClass = [
     "ingest-dropzone",
     dragging ? "ingest-dropzone--drag" : "",
@@ -187,6 +184,7 @@ export function IngestDropZone() {
 
       <div
         className={dropzoneClass}
+        data-testid="ingest-dropzone"
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -208,7 +206,6 @@ export function IngestDropZone() {
           }
         }}
       >
-        {/* C-4: icon wrapper receives scale spring class when dragging */}
         <span
           className={`ingest-dropzone-icon${
             dragging ? " ingest-dropzone-icon--drag" : ""

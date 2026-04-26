@@ -66,10 +66,10 @@ export function FileViewerModal({
   const [error,   setError]   = useState<string | null>(null)
 
   // ── Animation state ──
-  const [visible,  setVisible]  = useState(false)   // backdrop visible
-  const [entering, setEntering] = useState(false)   // modal panel is entering
-  const [exiting,  setExiting]  = useState(false)   // modal panel is exiting
-  const [open,     setOpen]     = useState(false)   // controls render presence
+  const [visible,  setVisible]  = useState(false)
+  const [entering, setEntering] = useState(false)
+  const [exiting,  setExiting]  = useState(false)
+  const [open,     setOpen]     = useState(false)
 
   // ── Tab state ──
   const [activeTab,   setActiveTab]   = useState<TabId>('table')
@@ -84,7 +84,6 @@ export function FileViewerModal({
     setError(null)
     setLoading(true)
     setOpen(true)
-    // Enter animation
     requestAnimationFrame(() => {
       setVisible(true)
       if (!prefersReducedMotion()) {
@@ -138,7 +137,6 @@ export function FileViewerModal({
 
   if (!open) return null
 
-  // ── Derived styles using tokens ──
   const surf  = colors.surface
   const txt   = colors.text
   const acc   = colors.accent
@@ -175,21 +173,17 @@ export function FileViewerModal({
         : `transform ${ANIMATION_EXIT_MS}ms ease-in, opacity ${ANIMATION_EXIT_MS}ms ease-in`,
   }
 
-  // ── Skeleton layout ──
   const SkeletonContent = (
     <div style={{ padding: `${tokens.space.md}px`, display: 'flex', flexDirection: 'column', gap: `${tokens.space.sm}px` }}>
-      {/* Toolbar skeleton */}
       <div style={{ display: 'flex', gap: `${tokens.space.sm}px`, marginBottom: `${tokens.space.sm}px` }}>
         <Skeleton width={80}  height={32} borderRadius={tokens.radius.sm} />
         <Skeleton width={80}  height={32} borderRadius={tokens.radius.sm} />
         <Skeleton width={120} height={32} borderRadius={tokens.radius.sm} />
       </div>
-      {/* Tab skeleton */}
       <div style={{ display: 'flex', gap: `${tokens.space.sm}px`, marginBottom: `${tokens.space.md}px` }}>
         <Skeleton width={80} height={36} borderRadius={tokens.radius.sm} />
         <Skeleton width={80} height={36} borderRadius={tokens.radius.sm} />
       </div>
-      {/* Body skeleton */}
       <Skeleton height={240} borderRadius={tokens.radius.md} />
       <Skeleton height={20}  width="60%" />
       <Skeleton height={20}  width="80%" />
@@ -199,6 +193,7 @@ export function FileViewerModal({
 
   return (
     <div
+      data-testid="file-viewer-modal"
       role="dialog"
       aria-modal="true"
       aria-label={doc ? doc.name : 'Loading file…'}
@@ -237,6 +232,7 @@ export function FileViewerModal({
               </button>
             )}
             <button
+              data-testid="modal-close-button"
               onClick={handleClose}
               aria-label="Close"
               style={{ ...toolbarBtn(surf.overlay, txt.secondary), fontWeight: 700, fontSize: `${tokens.font.lg}px`, lineHeight: 1 }}
@@ -263,6 +259,7 @@ export function FileViewerModal({
               <button
                 key={tab}
                 role="tab"
+                data-value={tab}
                 aria-selected={activeTab === tab}
                 onClick={() => handleTabSwitch(tab)}
                 style={{
@@ -288,7 +285,7 @@ export function FileViewerModal({
           style={{
             flex:          1,
             overflow:      'auto',
-            height:        480,  // fixed height — no layout shift on tab switch
+            height:        480,
             opacity:       crossfading ? 0 : 1,
             transition:    prefersReducedMotion() ? 'none' : `opacity ${CROSSFADE_MS}ms ease`,
           }}
@@ -309,8 +306,6 @@ export function FileViewerModal({
           )}
           {!loading && !error && doc && (
             <div style={{ padding: `${tokens.space.md}px` }}>
-              {/* Plug in your CsvTableView / CsvChartPanel / OcrImageView etc. here */}
-              {/* Tab panel content — rendered by parent via render prop or here by switch */}
               <p style={{ color: txt.secondary, fontSize: `${tokens.font.sm}px` }}>
                 [{activeTab} content for {doc.name}]
               </p>
@@ -322,7 +317,6 @@ export function FileViewerModal({
   )
 }
 
-// ── Small helper — inline toolbar button style ────────────────────────────────
 function toolbarBtn(bg: string, color: string): React.CSSProperties {
   return {
     background:   bg,

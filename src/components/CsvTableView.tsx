@@ -60,7 +60,7 @@ function JumpToRow({
     e.preventDefault();
     const n = parseInt(inputVal, 10);
     if (!isNaN(n) && n >= 1 && n <= totalRows) {
-      onJump(n - 1); // convert 1-based user input to 0-based index
+      onJump(n - 1);
       setInputVal("");
     }
   }
@@ -105,7 +105,6 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
     overscan: 10,
   });
 
-  // B-3: Jump-to-row handler — scrollToIndex via virtualizer
   const handleJump = useCallback((rowIndex: number) => {
     virtualizer.scrollToIndex(rowIndex, { align: "start", behavior: "smooth" });
   }, [virtualizer]);
@@ -122,7 +121,6 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
         to enable the paginated view.
       </p>
 
-      {/* B-3: Jump-to-row control above the virtual scroll container */}
       <JumpToRow totalRows={rows.length} onJump={handleJump} />
 
       <div
@@ -145,6 +143,7 @@ function VirtualizedTable({ rows, headers }: { rows: Record<string, string>[]; h
               return (
                 <tr
                   key={virtualRow.key}
+                  data-testid="csv-table-row"
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
                   className={virtualRow.index % 2 === 0 ? "csv-tr" : "csv-tr csv-tr--alt"}
@@ -205,7 +204,11 @@ function PaginatedTable({
               </tr>
             ) : (
               slice.map((row, i) => (
-                <tr key={start + i} className={i % 2 === 0 ? "csv-tr" : "csv-tr csv-tr--alt"}>
+                <tr
+                  key={start + i}
+                  data-testid="csv-table-row"
+                  className={i % 2 === 0 ? "csv-tr" : "csv-tr csv-tr--alt"}
+                >
                   {headers.map(h => (
                     <td key={h} className="csv-td">{row[h] ?? ""}</td>
                   ))}
