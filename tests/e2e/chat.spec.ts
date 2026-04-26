@@ -73,11 +73,16 @@ test.describe("Chat flow — sending messages", () => {
 test.describe("Chat flow — offline state", () => {
   test("send button is disabled and shows tooltip when offline", async ({ page, context }) => {
     await page.goto("/");
+    // Pre-fill the input so the send button's disabled state is driven purely
+    // by the offline/isLoading condition — not by the empty-input guard
+    // (disabled={disabled || !value.trim()}). Without this, the button is
+    // disabled for the wrong reason and the test assertion is ambiguous.
+    await page.locator("[data-testid=chat-input]").fill("test message");
     await context.setOffline(true);
     await expect(page.locator("[data-testid=offline-banner]")).toBeVisible({ timeout: 2000 });
     const sendButton = page.locator("[data-testid=chat-send-button]");
     await expect(sendButton).toBeDisabled();
-    await sendButton.hover();
+    // Tooltip renders unconditionally when disabled===true (React-driven, not CSS :hover)
     await expect(page.locator("[role=tooltip]")).toContainText("internet connection");
   });
 });

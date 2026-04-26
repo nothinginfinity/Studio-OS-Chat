@@ -10,6 +10,11 @@ export default defineConfig({
   use: {
     // Fix: Vite serves under /Studio-OS-Chat/ because base is set in vite.config.ts
     baseURL: 'http://localhost:5173/Studio-OS-Chat/',
+    // Fix: Block service worker registration so the VitePWA SW (generateSW +
+    // clientsClaim:true) cannot intercept context.setOffline() calls or cache
+    // network responses during E2E tests. Without this, the SW swallows the
+    // window offline event before useNetworkStatus can react to it.
+    serviceWorkers: 'block',
     trace: 'on-first-retry',
   },
   projects: [
