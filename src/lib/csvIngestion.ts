@@ -90,9 +90,11 @@ export function rejoinMultilineFields(lines: string[]): string[] {
 function countUnescapedQuotes(s: string): number {
   let count = 0;
   for (let i = 0; i < s.length; i++) {
-    if (s[i] === '"') {
+    if (s[i] === '\\' && s[i + 1] === '"') {
+      i++; // skip backslash-escaped quote entirely
+    } else if (s[i] === '"') {
       if (s[i + 1] === '"') {
-        i++;
+        i++; // skip RFC 4180 doubled-quote escape pair
       } else {
         count++;
       }
@@ -103,7 +105,13 @@ function countUnescapedQuotes(s: string): number {
 
 // ── CSV line parser ──────────────────────────────────────────────────────────
 
-/** RFC 4180-compatible: handles quoted fields with embedded commas/newlines. */
+/**
+ * RFC 4180-compatible parser with backslash-escape extension.
+ * Handles:
+ *   - quoted fields with embedded commas and newlines
+ *   - RFC 4180 doubled-quote escaping: "" → "
+ *   - backslash-escaped quote extension: \" → "
+ */
 export function parseRow(line: string): string[] {
   const fields: string[] = [];
   let inQuotes = false;
@@ -111,18 +119,31 @@ export function parseRow(line: string): string[] {
 
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
+
+    if (inQuotes) {
+      if (ch === '\\' && line[i + 1] === '"') {
+        // Backslash-escaped quote inside quoted field: \" → "
         field += '"';
         i++;
+      } else if (ch === '"' && line[i + 1] === '"') {
+        // RFC 4180 doubled-quote: "" → "
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        // Closing quote
+        inQuotes = false;
       } else {
-        inQuotes = !inQuotes;
+        field += ch;
       }
-    } else if (ch === ',' && !inQuotes) {
-      fields.push(field);
-      field = '';
     } else {
-      field += ch;
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        fields.push(field);
+        field = '';
+      } else {
+        field += ch;
+      }
     }
   }
   fields.push(field);
@@ -161,7 +182,6 @@ export interface CsvParseResult {
 // ── File text reader — works in both browser and jsdom ───────────────────────
 
 function readFileAsText(file: File): Promise<string> {
-  // file.text() is not available in jsdom; fall back to FileReader
   if (typeof file.text === 'function') {
     return file.text();
   }
@@ -211,7 +231,6 @@ export async function ingestCsv(file: File): Promise<CsvParseResult> {
   // Parse all rows as arrays (positional)
   const rows: string[][] = dataLines.map(line => {
     const values = parseRow(line);
-    // Pad to headers length
     while (values.length < headers.length) values.push('');
     return values.slice(0, headers.length);
   });
