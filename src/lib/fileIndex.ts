@@ -1,6 +1,10 @@
 /**
  * fileIndex.ts — v3
  * Ingestion pipeline: file → chunks → terms → IndexedDB
+ *
+ * B-1: indexFile() now accepts an optional `extra` partial FileRecord that is
+ * merged in before putFile. This lets callers (e.g. useFiles CSV path) attach
+ * csvMeta / chartSpecs without duplicating the indexing logic.
  */
 
 import { uid } from "./utils";
@@ -100,10 +104,22 @@ export type ProgressCallback = (p: IndexProgress) => void;
 
 // ── Index a single File object ─────────────────────────────────────────────────────
 
+/**
+ * Index a single File into IndexedDB.
+ *
+ * @param extra  Optional partial FileRecord to merge in before writing.
+ *               Callers can use this to attach csvMeta, chartSpecs, ocrMode, etc.
+ *               without duplicating the indexing pipeline.
+ *               Fields `id`, `rootId`, `path`, `name`, `ext`, `size`,
+ *               `modifiedAt`, `contentHash`, `indexedAt`, `ingestedAt`, and
+ *               `sourceType` are always set by this function and cannot be
+ *               overridden via `extra`.
+ */
 export async function indexFile(
   file: File,
   rootId: string,
-  relativePath: string
+  relativePath: string,
+  extra?: Partial<FileRecord>
 ): Promise<boolean> {
   if (!isSupportedFile(file.name)) return false;
 
@@ -116,6 +132,8 @@ export async function indexFile(
   const now = Date.now();
 
   const fileRecord: FileRecord = {
+    // Spread caller extras first so our required fields always win
+    ...extra,
     id: fileId,
     rootId,
     path: relativePath,

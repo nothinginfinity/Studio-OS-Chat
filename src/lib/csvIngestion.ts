@@ -8,9 +8,15 @@
  * A.3 changes:
  *  1. Strip UTF-8 BOM (\uFEFF) from raw text before processing
  *  2. Re-join quoted multiline fields that were split by the \n splitter
+ *
+ * B-1 changes:
+ *  3. ingestCsv() now calls inferChartSpecs and returns chartSpecs on the result
+ *  4. selectTemplates() re-export alias for inferChartSpecs (roadmap API name)
  */
 
-import type { ColumnMeta, CsvMeta } from './types';
+import type { ColumnMeta, CsvMeta, ChartSpec } from './types';
+import { inferChartSpecs } from './chartTemplates';
+import { uid } from './utils';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -141,6 +147,23 @@ export function parseRow(line: string): string[] {
   return fields;
 }
 
+// ── selectTemplates alias (roadmap API name) ─────────────────────────────────
+
+/**
+ * Alias for inferChartSpecs matching the roadmap's `selectTemplates(csvMeta)`
+ * call-site. fileId is generated internally so callers don't need to supply it.
+ *
+ * Returns 0-3 ChartSpec[] with source: 'template'.
+ * No network or LLM calls.
+ */
+export function selectTemplates(
+  csvMeta: CsvMeta,
+  rows: Record<string, string>[] = [],
+  fileId = uid(),
+): ChartSpec[] {
+  return inferChartSpecs(fileId, csvMeta, rows);
+}
+
 // ── Main export ──────────────────────────────────────────────────────────────
 
 export interface CsvParseResult {
@@ -149,6 +172,14 @@ export interface CsvParseResult {
   rows: Record<string, string>[];
   /** Tab-separated text representation of all rows, for chunk storage */
   chunkText: string;
+  /**
+   * B-1: Auto-generated template ChartSpecs produced from csvMeta + rows.
+   * 0–3 entries. All have source: 'template'. No network call made.
+   * Callers should persist this onto FileRecord.chartSpecs via indexFile extra.
+   */
+  chartSpecs: ChartSpec[];
+  /** Stable fileId used to generate chart spec ids — thread into indexFile extra. */
+  fileId: string;
 }
 
 /**
@@ -157,6 +188,7 @@ export interface CsvParseResult {
  * No network or LLM calls are made.
  *
  * A.3: strips UTF-8 BOM, re-joins multiline quoted fields before line split.
+ * B-1: calls inferChartSpecs and returns chartSpecs + fileId on result.
  */
 export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
   if (file.size > MAX_CSV_BYTES) {
@@ -215,5 +247,9 @@ export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
   }
   const chunkText = chunkLines.join('\n');
 
-  return { csvMeta, rows, chunkText };
+  // B-1: Generate template chart specs — no network, no LLM
+  const fileId = uid();
+  const chartSpecs = inferChartSpecs(fileId, csvMeta, rows);
+
+  return { csvMeta, rows, chunkText, chartSpecs, fileId };
 }

@@ -5,13 +5,17 @@
  * addFiles() and the addFolder fallback path, so CSV files get real text
  * content stored and show proper previews instead of
  * "No text content available for preview."
+ *
+ * B-1: preprocessFile() now also returns chartSpecs from ingestCsv();
+ * indexFileListWithCsvSupport() threads them into indexFile() via the `extra`
+ * parameter so FileRecord.chartSpecs is populated in IndexedDB at ingest time.
  */
 import { useState, useCallback, useEffect } from "react";
 import { indexDirectory, indexFileList, indexFile } from "../lib/fileIndex";
 import { ingestCsv } from "../lib/csvIngestion";
 import { putFileRoot, listFileRoots, removeFileRoot } from "../lib/db";
 import { uid } from "../lib/utils";
-import type { FileRootRecord } from "../lib/types";
+import type { FileRootRecord, ChartSpec, CsvMeta } from "../lib/types";
 
 export interface IndexingProgress {
   total: number;
@@ -19,35 +23,55 @@ export interface IndexingProgress {
   currentFile: string;
 }
 
+/** Shape returned by preprocessFile for CSV files that parsed successfully. */
+interface CsvPreprocessExtras {
+  csvMeta: CsvMeta;
+  chartSpecs: ChartSpec[];
+}
+
 /**
  * Pre-processes a File before handing it off to indexFile().
+ *
  * For CSV files: runs ingestCsv() to parse the structure and converts the
  * tab-separated chunkText into a synthetic .txt File so that indexFile()
- * stores real searchable text content.
+ * stores real searchable text content. Also returns csvMeta + chartSpecs so
+ * the caller can thread them into the FileRecord via indexFile(extra).
+ *
  * All other types are returned unchanged (indexFile handles them natively).
  */
-async function preprocessFile(file: File): Promise<File> {
+async function preprocessFile(
+  file: File
+): Promise<{ file: File; extras?: CsvPreprocessExtras }> {
   const isCsv =
     file.type === "text/csv" ||
     file.type === "application/csv" ||
     file.name.toLowerCase().endsWith(".csv");
 
-  if (!isCsv) return file;
+  if (!isCsv) return { file };
 
   const result = await ingestCsv(file);
-  if (!result) return file; // parse failed — let indexFile attempt to store as-is
+  if (!result) return { file }; // parse failed — let indexFile attempt to store as-is
 
   const textBlob = new Blob([result.chunkText], { type: "text/plain" });
-  return new File([textBlob], file.name + ".txt", {
+  const processedFile = new File([textBlob], file.name + ".txt", {
     type: "text/plain",
     lastModified: Date.now(),
   });
+
+  return {
+    file: processedFile,
+    extras: {
+      csvMeta: result.csvMeta,
+      chartSpecs: result.chartSpecs,
+    },
+  };
 }
 
 /**
  * Wraps indexFileList() with CSV pre-processing.
  * Each CSV is converted to a parsed .txt before indexing; all other types
  * pass through unchanged.
+ * B-1: passes csvMeta + chartSpecs via indexFile `extra` for CSV files.
  */
 async function indexFileListWithCsvSupport(
   files: File[],
@@ -60,8 +84,13 @@ async function indexFileListWithCsvSupport(
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     onProgress?.({ total: files.length, done: i, currentFile: file.name, skipped });
-    const processed = await preprocessFile(file);
-    const ok = await indexFile(processed, rootId, processed.name);
+    const { file: processed, extras } = await preprocessFile(file);
+    const ok = await indexFile(
+      processed,
+      rootId,
+      processed.name,
+      extras ? { csvMeta: extras.csvMeta, chartSpecs: extras.chartSpecs } : undefined
+    );
     ok ? indexed++ : skipped++;
   }
 
@@ -120,7 +149,7 @@ export function useFiles() {
             lastIndexedAt: null
           };
           await putFileRoot(rootRecord);
-          // FIX-002-F4: use CSV-aware indexing
+          // FIX-002-F4 + B-1: use CSV-aware indexing
           await indexFileListWithCsvSupport(files, rootId, (prog) =>
             setProgress({ total: prog.total, done: prog.done, currentFile: prog.currentFile })
           );
@@ -165,7 +194,7 @@ export function useFiles() {
           lastIndexedAt: null
         };
         await putFileRoot(rootRecord);
-        // FIX-002-F4: use CSV-aware indexing instead of bare indexFileList()
+        // FIX-002-F4 + B-1: use CSV-aware indexing instead of bare indexFileList()
         await indexFileListWithCsvSupport(files, rootId, (prog) =>
           setProgress({ total: prog.total, done: prog.done, currentFile: prog.currentFile })
         );
