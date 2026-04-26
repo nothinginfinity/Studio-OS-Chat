@@ -10,6 +10,10 @@
 
 import { test, expect, Page } from "@playwright/test";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const FIXTURES = path.join(__dirname, "../fixtures");
 
@@ -56,7 +60,7 @@ test.describe("File Ingest Pipeline", () => {
   test("IngestDropZone accepts CSV drag-drop", async ({ page }) => {
     await page.goto("/");
     // Check the drop zone is present
-    const dropZone = page.locator(".ingest-drop-zone, [data-testid=\"ingest-drop-zone\"]");
+    const dropZone = page.locator('.ingest-drop-zone, [data-testid="ingest-drop-zone"]');
     if (await dropZone.count() === 0) {
       test.skip(); // drop zone not visible in this layout variant
       return;
