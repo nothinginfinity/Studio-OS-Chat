@@ -6,8 +6,10 @@
  * - Routes to ingestImageAsMarkdown() for images, ingestPdfAsMarkdown() for PDFs,
  *   ingestCsv() for CSVs
  * - PDFs: ingestPdfAsMarkdown() handles its own indexing internally
- * - CSVs: ingestCsv() returns chunkText; wrapped as synthetic .txt and indexed via indexFile()
+ * - CSVs: ingestCsv() returns chunkText; wrapped as synthetic .txt and indexed
+ *   via indexFile() with sourceType: "csv" (FIX-003)
  * - Images: OCR output wrapped as synthetic .md and indexed via indexFile()
+ *   with sourceType: "ocr" (FIX-003)
  * - Mode selector for OCR: screenshot / document / code / receipt
  * - Auto-selects "document" mode when a multi-page image (non-PDF) is detected
  * - Shows per-file progress and result status
@@ -16,6 +18,8 @@
  * FIX-002-F1: added .csv,text/csv to <input accept>
  * FIX-002-F2: added isCsv branch in processFile() routing to csvIngestion
  * FIX-002-F3: updated drop zone label/subtitle to include CSV
+ * FIX-003: pass sourceType: "csv" / "ocr" into indexFile extra so FileRecord
+ *          is stored with the correct type, not the generic "file" fallback.
  */
 import { useState, useRef, useCallback } from "react";
 import { ingestImageAsMarkdown } from "../lib/ocr";
@@ -93,7 +97,9 @@ export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
           type: "text/plain",
           lastModified: Date.now(),
         });
+        // FIX-003: pass sourceType: "csv" so FileRecord.sourceType is not "file"
         await indexFile(syntheticFile, rootId, file.name, {
+          sourceType: "csv",
           csvMeta: result.csvMeta,
           chartSpecs: result.chartSpecs,
         });
@@ -114,7 +120,9 @@ export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
           type: "text/plain",
           lastModified: Date.now(),
         });
+        // FIX-003: pass sourceType: "ocr" so FileRecord.sourceType is not "file"
         await indexFile(syntheticFile, rootId, file.name + ".md", {
+          sourceType: "ocr" as FileRecord["sourceType"],
           ocrMode: effectiveMode,
         });
         updateFile(file.name, {
@@ -211,7 +219,8 @@ export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
 
       <div
         className={dropzoneClass}
-        data-testid="ingest-dropzone"
+        {/* FIX-003: align testid with what tests look for (kebab: ingest-drop-zone) */}
+        data-testid="ingest-drop-zone"
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -277,3 +286,6 @@ export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
     </div>
   );
 }
+
+// Re-export FileRecord type used in processFile for sourceType cast
+import type { FileRecord } from "../lib/types";

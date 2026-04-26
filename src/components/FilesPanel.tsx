@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useFiles } from "../hooks/useFiles";
 import { searchLocalIndex } from "../lib/search";
 import { listChunksByFile, listFilesByRoot } from "../lib/db";
+import { parseRow } from "../lib/csvIngestion";
 import type { SearchResult, FileRecord, FileRootRecord } from "../lib/types";
 import { FilePreviewSheet } from "./FilePreviewSheet";
 import { FileViewerModal } from "./FileViewerModal";
@@ -39,7 +40,6 @@ function FileRootCard({
 
   function handleClick() {
     if (longPressTriggeredRef.current) return;
-    // Single click → open in FileViewerModal
     onOpenInViewer(root);
   }
 
@@ -91,14 +91,29 @@ function FilesPanelEmptyState({ onAddFiles }: { onAddFiles: () => void }) {
   );
 }
 
-function chunkTextToRows(text: string): { rows: Record<string, string>[]; headers: string[] } {
+/**
+ * chunkTextToTableRows — parses chunk text stored by ingestCsv() back into
+ * rows and headers for the FileViewerModal table/chart tabs.
+ *
+ * ingestCsv() stores chunkText as TSV (tab-separated). This function detects
+ * that and splits on tabs. For legacy chunks stored as comma-CSV it falls back
+ * to parseRow() (RFC 4180 parser from csvIngestion.ts).
+ *
+ * FIX-003: replaced the previous ad-hoc split-on-comma parser with this
+ * TSV-aware version that delegates to the canonical parseRow() for CSV.
+ */
+function chunkTextToTableRows(text: string): { rows: Record<string, string>[]; headers: string[] } {
   const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(Boolean);
   if (!lines.length) return { rows: [], headers: [] };
 
-  const delimiter = lines[0].includes("\t") ? "\t" : ",";
-  const headers = lines[0].split(delimiter);
+  const isTsv = lines[0].includes("\t");
+
+  const splitLine = (line: string): string[] =>
+    isTsv ? line.split("\t") : parseRow(line);
+
+  const headers = splitLine(lines[0]);
   const rows = lines.slice(1).map((line) => {
-    const values = line.split(delimiter);
+    const values = splitLine(line);
     const row: Record<string, string> = {};
     headers.forEach((header, index) => {
       row[header] = values[index] ?? "";
@@ -126,9 +141,7 @@ export function FilesPanel() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeRoot, setActiveRoot] = useState<FileRootRecord | null>(null);
-  // selectedDocId drives FileViewerModal — null means closed
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  // Cache of FileRecord by id so loadDocument can resolve synchronously
   const [viewerFileMap, setViewerFileMap] = useState<Record<string, FileRecord>>({});
 
   async function handleSearch(e: React.FormEvent) {
@@ -143,31 +156,11 @@ export function FilesPanel() {
     }
   }
 
-  function handleNewChatFromFile(_rootId: string, previewText: string, name: string) {
-    window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
-      detail: { previewText, name }
-    }));
-  }
-
-  function handleAnalyzeInChat(fileId: string) {
-    window.dispatchEvent(new CustomEvent("studio:analyze-file", {
-      detail: { fileId }
-    }));
-  }
-
-  /** Populate the viewer file map and open the modal for this specific file. */
   function handleOpenInViewer(file: FileRecord) {
     setViewerFileMap(prev => ({ ...prev, [file.id]: file }));
     setSelectedDocId(file.id);
   }
 
-  /**
-   * Called when a FileRootCard is single-clicked.
-   *
-   * Queries IndexedDB for the first FileRecord belonging to the root.
-   * Falls back to a lightweight synthetic stub if the root has no files yet
-   * (not yet indexed) — the modal still opens and shows empty table/chart tabs.
-   */
   const handleRootCardClick = useCallback(async (root: FileRootRecord) => {
     let file: FileRecord | undefined;
     try {
@@ -180,7 +173,6 @@ export function FilesPanel() {
     if (file) {
       handleOpenInViewer(file);
     } else {
-      // Root exists but has no indexed files yet — open stub so modal appears
       const syntheticId = `root-${root.id}`;
       const stub: FileRecord = {
         id: syntheticId,
@@ -200,16 +192,15 @@ export function FilesPanel() {
   }, []);
 
   /**
-   * loadDocument satisfies FileViewerModal's async loader contract.
-   * Hydrates rows + headers from stored chunks so the table/chart tabs
-   * render real data.
+   * loadDocument — hydrates rows + headers from stored chunks.
+   * Uses the TSV-aware chunkTextToTableRows() so CSV data round-trips correctly.
    */
   const loadDocument = useCallback(async (id: string): Promise<IndexedDocument> => {
     const file = viewerFileMap[id];
     if (!file) throw new Error(`File ${id} not found — try re-indexing`);
     const chunks = await listChunksByFile(id);
     const content = chunks.map((chunk) => chunk.text).join("\n");
-    const parsed = chunkTextToRows(content);
+    const parsed = chunkTextToTableRows(content);
     return {
       ...fileRecordToIndexedDoc(file),
       content,
@@ -238,7 +229,6 @@ export function FilesPanel() {
         <h2 className="files-panel-title">Files</h2>
       </div>
 
-      {/* C-3: Storage quota bar */}
       <StorageQuotaBar />
 
       <div className="files-add-row">
@@ -314,29 +304,27 @@ export function FilesPanel() {
         </div>
       )}
 
-      {/* Long-press → FilePreviewSheet (unchanged behaviour) */}
       <FilePreviewSheet
         root={activeRoot}
         onClose={() => setActiveRoot(null)}
         onReindex={reindexRoot}
         onRemove={removeRoot}
-        onNewChatFromFile={handleNewChatFromFile}
-        onAnalyzeInChat={handleAnalyzeInChat}
+        onNewChatFromFile={(_rootId, previewText, name) => {
+          window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
+            detail: { previewText, name }
+          }));
+        }}
+        onAnalyzeInChat={(fileId) => {
+          window.dispatchEvent(new CustomEvent("studio:analyze-file", {
+            detail: { fileId }
+          }));
+        }}
         onOpenInViewer={handleOpenInViewer}
       />
 
-      {/*
-        IngestDropZone lives here so onIndexed can wire directly to refreshRoots.
-        Previously it lived in Sidebar.tsx without access to the useFiles hook.
-      */}
       <div className="sidebar-section-divider" />
       <IngestDropZone onIndexed={refreshRoots} />
 
-      {/*
-        FileViewerModal renders null when selectedDocId is null.
-        selectedDocId is set (and viewerFileMap is populated) by handleOpenInViewer,
-        which is called from handleRootCardClick after listFilesByRoot resolves.
-      */}
       <FileViewerModal
         docId={selectedDocId}
         loadDocument={loadDocument}

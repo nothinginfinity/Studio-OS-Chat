@@ -1,10 +1,14 @@
 /**
- * fileIndex.ts — v3
+ * fileIndex.ts — v4
  * Ingestion pipeline: file → chunks → terms → IndexedDB
  *
  * B-1: indexFile() now accepts an optional `extra` partial FileRecord that is
  * merged in before putFile. This lets callers (e.g. useFiles CSV path) attach
  * csvMeta / chartSpecs without duplicating the indexing logic.
+ *
+ * FIX-003: extra.sourceType is now preserved. The previous implementation
+ * always overwrote sourceType with "file" even when callers passed
+ * { sourceType: "csv" }. Now: sourceType defaults to "file" but extra wins.
  */
 
 import { uid } from "./utils";
@@ -17,7 +21,6 @@ import type { FileRecord, ChunkRecord, TermRecord, FileRootRecord } from "./type
 export function tokenize(text: string): string[] {
   return text
     .toLowerCase()
-    // Split camelCase and snake_case so identifiers are findable as sub-tokens
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/_+/g, " ")
     .split(/[^a-z0-9]+/)
@@ -58,7 +61,6 @@ function chunkCode(text: string): string[] {
 }
 
 function chunkProse(text: string): string[] {
-  // Split on blank lines (paragraph boundaries) first, then merge into target size
   const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim());
   const chunks: string[] = [];
   let current = "";
@@ -66,7 +68,6 @@ function chunkProse(text: string): string[] {
   for (const para of paragraphs) {
     if (current.length + para.length > PROSE_CHUNK_CHARS && current.length > 0) {
       chunks.push(current.trim());
-      // carry overlap: last PROSE_OVERLAP_CHARS of current
       current = current.slice(-PROSE_OVERLAP_CHARS) + "\n\n" + para;
     } else {
       current = current ? current + "\n\n" + para : para;
@@ -80,7 +81,7 @@ export function chunkText(text: string, ext: string): string[] {
   return CODE_EXTS.has(ext) ? chunkCode(text) : chunkProse(text);
 }
 
-// ── Content hash (simple, no crypto dependency) ─────────────────────────────────
+// ── Content hash ─────────────────────────────────────────────────────────────
 
 function simpleHash(text: string): string {
   let h = 0x811c9dc5;
@@ -91,7 +92,7 @@ function simpleHash(text: string): string {
   return h.toString(16);
 }
 
-// ── Progress callback type ─────────────────────────────────────────────────────────
+// ── Progress callback ─────────────────────────────────────────────────────────
 
 export interface IndexProgress {
   total: number;
@@ -102,18 +103,19 @@ export interface IndexProgress {
 
 export type ProgressCallback = (p: IndexProgress) => void;
 
-// ── Index a single File object ─────────────────────────────────────────────────────
+// ── Index a single File object ────────────────────────────────────────────────
 
 /**
  * Index a single File into IndexedDB.
  *
  * @param extra  Optional partial FileRecord to merge in before writing.
- *               Callers can use this to attach csvMeta, chartSpecs, ocrMode, etc.
- *               without duplicating the indexing pipeline.
- *               Fields `id`, `rootId`, `path`, `name`, `ext`, `size`,
- *               `modifiedAt`, `contentHash`, `indexedAt`, `ingestedAt`, and
- *               `sourceType` are always set by this function and cannot be
- *               overridden via `extra`.
+ *               Callers can use this to attach csvMeta, chartSpecs, ocrMode,
+ *               and — crucially — sourceType.
+ *
+ *               FIX-003: sourceType from `extra` is now respected.
+ *               The default "file" only applies when extra.sourceType is absent.
+ *               Pass { sourceType: "csv" } for CSV synthetic files,
+ *               { sourceType: "ocr" } for OCR images, etc.
  */
 export async function indexFile(
   file: File,
@@ -132,7 +134,7 @@ export async function indexFile(
   const now = Date.now();
 
   const fileRecord: FileRecord = {
-    // Spread caller extras first so our required fields always win
+    // Spread caller extras first — sourceType from extra wins over the default below
     ...extra,
     id: fileId,
     rootId,
@@ -144,7 +146,8 @@ export async function indexFile(
     contentHash: hash,
     indexedAt: now,
     ingestedAt: now,
-    sourceType: "file",
+    // Default to "file"; preserved by spread above if extra.sourceType is set
+    sourceType: extra?.sourceType ?? "file",
   };
 
   await putFile(fileRecord);
@@ -154,17 +157,17 @@ export async function indexFile(
   const termRecords: TermRecord[] = [];
 
   for (let i = 0; i < rawChunks.length; i++) {
-    const chunkText = rawChunks[i];
+    const chunkContent = rawChunks[i];
     const chunkId = uid();
-    const tokens = tokenize(chunkText);
+    const tokens = tokenize(chunkContent);
     const tf = computeTf(tokens);
 
     chunkRecords.push({
       id: chunkId,
       fileId,
       ordinal: i,
-      text: chunkText,
-      textLower: chunkText.toLowerCase(),
+      text: chunkContent,
+      textLower: chunkContent.toLowerCase(),
       tokenCount: tokens.length
     });
 
@@ -179,7 +182,7 @@ export async function indexFile(
   return true;
 }
 
-// ── Index a batch of File objects (file input fallback) ─────────────────────────────
+// ── Index a batch of File objects ─────────────────────────────────────────────
 
 export async function indexFileList(
   files: File[],
@@ -204,7 +207,7 @@ export async function indexFileList(
   return { indexed, skipped };
 }
 
-// ── Index a directory via FileSystemDirectoryHandle ───────────────────────────────
+// ── Index a directory via FileSystemDirectoryHandle ───────────────────────────
 
 async function walkDirectory(
   dirHandle: FileSystemDirectoryHandle,
@@ -243,7 +246,6 @@ export async function indexDirectory(
   };
   await putFileRoot(root);
 
-  // Walk first to get total count for progress
   const collector: Array<{ file: File; path: string }> = [];
   await walkDirectory(dirHandle, rootId, "", collector);
 
@@ -262,7 +264,6 @@ export async function indexDirectory(
     ok ? indexed++ : skipped++;
   }
 
-  // Mark last indexed time
   await putFileRoot({ ...root, lastIndexedAt: Date.now() });
 
   return { rootId, indexed, skipped };
