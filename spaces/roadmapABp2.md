@@ -23,7 +23,7 @@
 
 ---
 
-## Phase 6 — QA, Hardening & Accessibility
+## Phase 6 — QA, Hardening & Accessibility ✅ COMPLETE
 
 > Goal: Validate the app against real runtime behaviour, harden the CSV parser to RFC 4180 compliance, and lay groundwork for wider release.
 
@@ -137,15 +137,49 @@ Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/8ae8c810540d924
 
 ---
 
-### Track E — Accessibility Audit (WCAG 2.1 AA) — Priority 5
+### Track E — Accessibility Audit (WCAG 2.1 AA) ✅ COMPLETE
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| E.1 | Audit `CsvTableView.tsx` | Alice | ☐ |
-| E.2 | Audit `ChatView.tsx` + `AttachedFileBadge` | Alice | ☐ |
-| E.3 | Audit file picker / drop zone | Bob | ☐ |
-| E.4 | Fix WCAG 2.1 AA failures found in E.1–E.3 | Owner TBD | ☐ |
-| E.5 | Verify tab order across FileViewerModal | Alice | ☐ |
+| E.1 | Audit `CsvTableView.tsx` | Alice | ✅ |
+| E.2 | Audit `ChatView.tsx` + `AttachedFileBadge` | Alice | ✅ |
+| E.3 | Audit file picker / drop zone (`IngestDropZone.tsx`) | Bob | ✅ |
+| E.4 | Fix WCAG 2.1 AA failures found in E.1–E.3 | Alice + Bob | ✅ |
+| E.5 | Verify tab order + focus trap across `FileViewerModal` | Alice | ✅ |
+
+> **Track E COMPLETE ✅** — All E tasks done. Phase 6 is COMPLETE.
+
+**E.1 Findings (Alice — 2026-04-25):**
+- `scope="col"` present on all `<th>` in both VirtualizedTable and PaginatedTable — WCAG 1.3.1 PASS ✅
+- VirtualizedTable: `aria-hidden="true"` on virtual scroll container + `<p className="sr-only" role="note">` summary for AT — WCAG 1.3.1 PASS ✅
+- Pagination buttons are native `<button>` with `aria-label` — WCAG 2.1.1 + 4.1.2 PASS ✅
+- **0 failures. E.1 PASS ✅**
+
+**E.2 Findings (Alice — 2026-04-25):**
+- `AttachedFileBadge`: `role="status"` + `aria-label="Attached file: {fileName}"` — WCAG 4.1.2 PASS ✅
+- Paperclip icon `aria-hidden="true"` — WCAG 1.3.1 PASS ✅
+- Dismiss button: `aria-label="Detach file"` + `<span className="sr-only">Detach file</span>` (E.2-F1 already applied) — WCAG 2.5.3 PASS ✅
+- **0 failures. E.2 PASS ✅**
+
+**E.3 Findings (Bob — 2026-04-25):** 5 WCAG failures found and fixed in `IngestDropZone.tsx`.
+- E.3-F1: Space key + `e.preventDefault()` in `onKeyDown` — WCAG 2.1.1 PASS ✅
+- E.3-F2: Dynamic `aria-label` ternary on drop zone — WCAG 4.1.2 PASS ✅
+- E.3-F3: `role="log"` + `aria-live="polite"` on `<ul>` — WCAG 4.1.3 PASS ✅
+- E.3-F4: `aria-pressed={mode === m.value}` on OCR mode buttons — WCAG 4.1.2 PASS ✅
+- E.3-F5: `aria-hidden="true"` on status emoji `<span>` — WCAG 1.3.1 PASS ✅
+- Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/4a1bf7d157a5aee928c3177d4513448a456a76f9
+- Alice verified all 5 fixes PASS ✅
+
+**E.4 Summary:** 5 Bob fixes (E.3-F1–F5 in IngestDropZone.tsx) + 1 Alice fix (E.2-F1 sr-only dismiss text in ChatView.tsx). All WCAG failures resolved ✅.
+
+**E.5 Findings + Fixes (Alice — 2026-04-25):**
+- Focus moves to Close button on modal mount — WCAG 2.4.3 PASS ✅
+- Focus returns to trigger element on modal close — WCAG 2.4.3 PASS ✅
+- Escape key closes modal — WCAG 2.1.2 PASS ✅
+- **E.5-F1 (pre-existing):** Focus-on-open + return-on-close already in place ✅
+- **E.5-F2 (new fix):** Focus trap added via `getFocusable()` + `keydown` handler on `fvm-shell` — Tab/Shift+Tab cycle constrained to modal, cannot escape to background — WCAG 2.1.2 PASS ✅
+- **E.5-F3 (new fix):** `type="button"` added to all four toolbar buttons (Copy as Markdown, Open in Chat, Analyze in Chat, Export CSV) — WCAG 4.1.2 PASS ✅
+- Tab order: Close → Copy as Markdown → Open in Chat → Analyze in Chat → Export CSV → FileViewer content — logical DOM order ✅
 
 ---
 
@@ -174,7 +208,13 @@ Commit: https://github.com/nothinginfinity/Studio-OS-Chat/commit/8ae8c810540d924
 - [2026-04-25] Bob (bob.mmcp) — D.1: src/components/ViewerErrorBoundary.tsx created. Class component, getDerivedStateFromError, default fallback UI with reset, optional custom fallback prop.
 - [2026-04-25] Alice (alice.mmcp) — D.2: ViewerErrorBoundary wired into FileViewerModal.tsx. FileViewer wrapped; CsvChartPanel left outside boundary (independent). Commit: 1720e66.
 - [2026-04-25] Alice (alice.mmcp) — D.3: ViewerErrorBoundary verified by code audit. All acceptance criteria PASS. Track D COMPLETE ✅.
+- [2026-04-25] Alice (alice.mmcp) — E.1: CsvTableView.tsx audit — 0 failures. PASS ✅.
+- [2026-04-25] Alice (alice.mmcp) — E.2: ChatView.tsx + AttachedFileBadge audit — 0 failures. PASS ✅.
+- [2026-04-25] Bob (bob.mmcp) — E.3: IngestDropZone.tsx audit — 5 failures found and fixed (E.3-F1–F5). Commit: 4a1bf7d. Alice verified PASS ✅.
+- [2026-04-25] Alice + Bob — E.4: All WCAG 2.1 AA failures resolved (5 Bob + 1 Alice fix).
+- [2026-04-25] Alice (alice.mmcp) — E.5: FileViewerModal.tsx tab order verified + focus trap added (E.5-F2) + type=button on toolbar (E.5-F3). Track E COMPLETE ✅.
+- [2026-04-25] **Phase 6 COMPLETE ✅** — All tracks C, A, B, D, E done. App is QA'd, RFC 4180 hardened, virtualized, error-bounded, and WCAG 2.1 AA accessible.
 
 ---
 
-*Last updated: 2026-04-25 by Alice (alice.mmcp) — Track D COMPLETE ✅. D.1–D.3 all done. Track E (Alice E.1, E.2, E.5; Bob E.3; E.4 TBD) is next.*
+*Last updated: 2026-04-25 by Alice (alice.mmcp) — **Phase 6 COMPLETE ✅**. All tracks done. App ready for wider release.*

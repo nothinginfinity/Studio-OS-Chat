@@ -28,10 +28,21 @@ function formatDate(ts: number): string {
   });
 }
 
+/** Returns all focusable elements inside a container, in DOM order. */
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+      'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter(el => !el.closest('[aria-hidden="true"]'));
+}
+
 export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }: Props) {
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   // E.5-F1: Capture the element that had focus before the modal opened,
@@ -48,6 +59,33 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
         (triggerRef.current as HTMLElement).focus();
       }
     };
+  }, []);
+
+  // E.5-F2: Focus trap — Tab and Shift+Tab cycle only within fvm-shell.
+  // Prevents keyboard focus from escaping to the background page (WCAG 2.1.2).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab" || !shellRef.current) return;
+      const focusable = getFocusable(shellRef.current);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        // Shift+Tab from first → wrap to last
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        // Tab from last → wrap to first
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Lifted CSV state — populated via FileViewer's onDataReady callback
@@ -161,7 +199,8 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
       aria-modal="true"
       aria-label={`File viewer: ${file.name}`}
     >
-      <div className="fvm-shell">
+      {/* E.5-F2: shellRef scopes the focus trap to modal content only */}
+      <div className="fvm-shell" ref={shellRef}>
 
         {/* ── Header bar ── */}
         <div className="fvm-header">
@@ -184,6 +223,7 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
             className="fvm-close-btn"
             onClick={onClose}
             aria-label="Close viewer"
+            type="button"
           >
             ✕
           </button>
@@ -191,10 +231,12 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
 
         {/* ── Toolbar ── */}
         <div className="fvm-toolbar">
+          {/* E.5-F3: type="button" on all toolbar buttons — prevents accidental form submission */}
           <button
             className="fvm-tool-btn"
             onClick={handleCopyAsMarkdown}
             title="Copy as Markdown"
+            type="button"
           >
             <span className="fvm-tool-icon">{copied ? "✓" : "⌘"}</span>
             <span>{copied ? "Copied!" : "Copy as Markdown"}</span>
@@ -205,6 +247,7 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
               className="fvm-tool-btn"
               onClick={handleOpenInChat}
               title="Open in Chat"
+              type="button"
             >
               <span className="fvm-tool-icon">✨</span>
               <span>Open in Chat</span>
@@ -217,6 +260,7 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
               className="fvm-tool-btn fvm-tool-btn--analyze"
               onClick={handleAnalyzeInChat}
               title="Analyze this file with the LLM"
+              type="button"
             >
               <span className="fvm-tool-icon">🔬</span>
               <span>Analyze in Chat</span>
@@ -229,6 +273,7 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
               onClick={handleExportCsv}
               disabled={exporting}
               title="Export CSV"
+              type="button"
             >
               <span className="fvm-tool-icon">↧</span>
               <span>{exporting ? "Exporting…" : "Export CSV"}</span>
