@@ -42,7 +42,7 @@ interface FileViewerModalProps {
   /** Called when user clicks "open in chat" */
   onOpenInChat?: (doc: IndexedDocument) => void
   /** Called when user clicks re-index */
-  onReIndex?: (id: string) => void
+  onReIndex?: (id: string) => void | Promise<void>
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -213,6 +213,22 @@ export function FileViewerModal({
     return () => window.removeEventListener('keydown', handler)
   }, [handleClose])
 
+  // ── Re-index with document reload ──
+  const handleRetryReIndex = useCallback(async () => {
+    if (!docId) return
+    setError(null)
+    setLoading(true)
+    try {
+      await onReIndex?.(docId)
+      const reloaded = await loadDocument(docId)
+      setDoc(reloaded)
+      setLoading(false)
+    } catch (e: unknown) {
+      setError(String(e instanceof Error ? e.message : e))
+      setLoading(false)
+    }
+  }, [docId, loadDocument, onReIndex])
+
   if (!open) return null
 
   const surf  = colors.surface
@@ -307,7 +323,7 @@ export function FileViewerModal({
             )}
             {doc && onReIndex && (
               <button
-                onClick={() => onReIndex(doc.id)}
+                onClick={() => { void handleRetryReIndex() }}
                 style={toolbarBtn(surf.overlay, txt.secondary)}
               >
                 Re-index
@@ -401,7 +417,7 @@ export function FileViewerModal({
                 </pre>
                 {onReIndex && docId && (
                   <button
-                    onClick={() => onReIndex(docId)}
+                    onClick={() => { void handleRetryReIndex() }}
                     style={toolbarBtn(colors.status.error, txt.inverse)}
                   >
                     Try re-indexing

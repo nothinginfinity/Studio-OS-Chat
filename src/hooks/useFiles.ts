@@ -103,9 +103,14 @@ export function useFiles() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    listFileRoots().then(setRoots).catch(() => {});
+  const refreshRoots = useCallback(async () => {
+    const next = await listFileRoots();
+    setRoots(next);
   }, []);
+
+  useEffect(() => {
+    refreshRoots().catch(() => {});
+  }, [refreshRoots]);
 
   const addFolder = useCallback(async () => {
     setError(null);
@@ -231,5 +236,6 @@ export function useFiles() {
     addFiles,
     removeRoot,
     reindexRoot,
+    refreshRoots,
   };
 }

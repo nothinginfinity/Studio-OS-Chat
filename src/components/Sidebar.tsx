@@ -6,7 +6,6 @@ import { SessionTitleEditor } from "./SessionTitleEditor";
 import { FilesPanel } from "./FilesPanel";
 import { OllamaStatus } from "./OllamaStatus";
 import ProviderSettings from "./ProviderSettings";
-import { IngestDropZone } from "./IngestDropZone";
 import { ExportChatButton } from "./ExportChatButton";
 import { GitHubSettings } from "./GitHubSettings";
 import { SpacesPanel } from "./SpacesPanel";
@@ -292,11 +291,7 @@ export function Sidebar({
       {tab === "library" && <PromptLibrary active={tab === "library"} onInsertPrompt={onInsertPrompt} />}
 
       {tab === "files" && (
-        <>
-          <FilesPanel />
-          <div className="sidebar-section-divider" />
-          <IngestDropZone />
-        </>
+        <FilesPanel />
       )}
 
       {tab === "spaces" && <SpacesPanel />}

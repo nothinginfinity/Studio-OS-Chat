@@ -1,13 +1,14 @@
 import { useState, useCallback } from "react";
 import { useFiles } from "../hooks/useFiles";
 import { searchLocalIndex } from "../lib/search";
-import { listFilesByRoot } from "../lib/db";
+import { listChunksByFile, listFilesByRoot } from "../lib/db";
 import type { SearchResult, FileRecord, FileRootRecord } from "../lib/types";
 import { FilePreviewSheet } from "./FilePreviewSheet";
 import { FileViewerModal } from "./FileViewerModal";
 import type { IndexedDocument } from "./FileViewerModal";
 import { useLongPress } from "../hooks/useLongPress";
 import { StorageQuotaBar } from "./StorageQuotaBar";
+import { IngestDropZone } from "./IngestDropZone";
 import "../files.css";
 import "../phase4.css";
 
@@ -90,6 +91,24 @@ function FilesPanelEmptyState({ onAddFiles }: { onAddFiles: () => void }) {
   );
 }
 
+function chunkTextToRows(text: string): { rows: Record<string, string>[]; headers: string[] } {
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(Boolean);
+  if (!lines.length) return { rows: [], headers: [] };
+
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const headers = lines[0].split(delimiter);
+  const rows = lines.slice(1).map((line) => {
+    const values = line.split(delimiter);
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? "";
+    });
+    return row;
+  });
+
+  return { rows, headers };
+}
+
 /** Adapter: converts a FileRecord to the IndexedDocument shape FileViewerModal expects */
 function fileRecordToIndexedDoc(file: FileRecord): IndexedDocument {
   return {
@@ -102,7 +121,7 @@ function fileRecordToIndexedDoc(file: FileRecord): IndexedDocument {
 }
 
 export function FilesPanel() {
-  const { roots, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
+  const { roots, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot, refreshRoots } = useFiles();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -182,13 +201,21 @@ export function FilesPanel() {
 
   /**
    * loadDocument satisfies FileViewerModal's async loader contract.
-   * By the time this is called, handleOpenInViewer has already added the
-   * FileRecord to viewerFileMap, so this always resolves immediately.
+   * Hydrates rows + headers from stored chunks so the table/chart tabs
+   * render real data.
    */
   const loadDocument = useCallback(async (id: string): Promise<IndexedDocument> => {
     const file = viewerFileMap[id];
     if (!file) throw new Error(`File ${id} not found — try re-indexing`);
-    return fileRecordToIndexedDoc(file);
+    const chunks = await listChunksByFile(id);
+    const content = chunks.map((chunk) => chunk.text).join("\n");
+    const parsed = chunkTextToRows(content);
+    return {
+      ...fileRecordToIndexedDoc(file),
+      content,
+      rows: parsed.rows,
+      headers: parsed.headers,
+    };
   }, [viewerFileMap]);
 
   function handleViewerOpenInChat(doc: IndexedDocument) {
@@ -202,7 +229,6 @@ export function FilesPanel() {
     window.dispatchEvent(new CustomEvent("studio:analyze-file", {
       detail: { fileId: id }
     }));
-    setSelectedDocId(null);
   }
 
   return (
@@ -298,6 +324,13 @@ export function FilesPanel() {
         onAnalyzeInChat={handleAnalyzeInChat}
         onOpenInViewer={handleOpenInViewer}
       />
+
+      {/*
+        IngestDropZone lives here so onIndexed can wire directly to refreshRoots.
+        Previously it lived in Sidebar.tsx without access to the useFiles hook.
+      */}
+      <div className="sidebar-section-divider" />
+      <IngestDropZone onIndexed={refreshRoots} />
 
       {/*
         FileViewerModal renders null when selectedDocId is null.

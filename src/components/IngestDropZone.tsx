@@ -22,7 +22,9 @@ import { ingestImageAsMarkdown } from "../lib/ocr";
 import { ingestPdfAsMarkdown } from "../lib/pdfIngestion";
 import { ingestCsv } from "../lib/csvIngestion";
 import { indexFile } from "../lib/fileIndex";
-import type { OCRMode } from "../lib/types";
+import { putFileRoot } from "../lib/db";
+import { uid } from "../lib/utils";
+import type { OCRMode, FileRootRecord } from "../lib/types";
 import "../phase4.css";
 
 type FileStatus = "pending" | "processing" | "done" | "error";
@@ -33,9 +35,12 @@ interface FileItem {
   message?: string;
 }
 
-const DEFAULT_ROOT = "default";
+interface IngestDropZoneProps {
+  /** Called after a batch finishes indexing so parent panels can refresh roots. */
+  onIndexed?: () => void | Promise<void>;
+}
 
-export function IngestDropZone() {
+export function IngestDropZone({ onIndexed }: IngestDropZoneProps = {}) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [dropSuccess, setDropSuccess] = useState(false);
@@ -49,7 +54,7 @@ export function IngestDropZone() {
     );
   }
 
-  async function processFile(file: File) {
+  async function processFile(file: File, rootId: string) {
     const isImage = file.type.startsWith("image/");
     const isPdf =
       file.type === "application/pdf" || file.name.endsWith(".pdf");
@@ -66,7 +71,7 @@ export function IngestDropZone() {
     updateFile(file.name, { status: "processing" });
     try {
       if (isPdf) {
-        const result = await ingestPdfAsMarkdown(file, DEFAULT_ROOT);
+        const result = await ingestPdfAsMarkdown(file, rootId);
         if (!result) {
           updateFile(file.name, { status: "error", message: "PDF extraction returned no content" });
           return;
@@ -88,7 +93,10 @@ export function IngestDropZone() {
           type: "text/plain",
           lastModified: Date.now(),
         });
-        await indexFile(syntheticFile, DEFAULT_ROOT, file.name + ".txt");
+        await indexFile(syntheticFile, rootId, file.name, {
+          csvMeta: result.csvMeta,
+          chartSpecs: result.chartSpecs,
+        });
         updateFile(file.name, {
           status: "done",
           message: `CSV indexed — ${result.csvMeta.rowCount} rows, ${result.csvMeta.columns.length} columns ✓`,
@@ -96,7 +104,7 @@ export function IngestDropZone() {
       } else {
         const effectiveMode: OCRMode =
           mode === "screenshot" && file.size > 200_000 ? "document" : mode;
-        const result = await ingestImageAsMarkdown(file, DEFAULT_ROOT, effectiveMode);
+        const result = await ingestImageAsMarkdown(file, rootId, effectiveMode);
         if (!result) {
           updateFile(file.name, { status: "error", message: "OCR returned no content" });
           return;
@@ -106,7 +114,9 @@ export function IngestDropZone() {
           type: "text/plain",
           lastModified: Date.now(),
         });
-        await indexFile(syntheticFile, DEFAULT_ROOT, file.name + ".md");
+        await indexFile(syntheticFile, rootId, file.name + ".md", {
+          ocrMode: effectiveMode,
+        });
         updateFile(file.name, {
           status: "done",
           message: `OCR done — ${result.wordCount} words ✓`,
@@ -121,15 +131,32 @@ export function IngestDropZone() {
   }
 
   async function handleFiles(list: FileList | null) {
-    if (!list) return;
-    const incoming: FileItem[] = Array.from(list).map((f) => ({
+    if (!list?.length) return;
+    const incomingFiles = Array.from(list);
+    const incoming: FileItem[] = incomingFiles.map((f) => ({
       name: f.name,
       status: "pending" as FileStatus,
     }));
     setFiles((prev) => [...incoming, ...prev]);
-    for (const file of Array.from(list)) {
-      await processFile(file);
+
+    const now = Date.now();
+    const rootId = uid();
+    const rootRecord: FileRootRecord = {
+      id: rootId,
+      name: incomingFiles.length === 1 ? incomingFiles[0].name : "Uploaded files",
+      kind: "files",
+      addedAt: now,
+      lastIndexedAt: null,
+    };
+
+    await putFileRoot(rootRecord);
+
+    for (const file of incomingFiles) {
+      await processFile(file, rootId);
     }
+
+    await putFileRoot({ ...rootRecord, lastIndexedAt: Date.now() });
+    await onIndexed?.();
   }
 
   const onDrop = useCallback(
@@ -141,7 +168,7 @@ export function IngestDropZone() {
       dropSuccessTimer.current = setTimeout(() => setDropSuccess(false), 300);
       handleFiles(e.dataTransfer.files);
     },
-    [mode]
+    [mode, onIndexed]
   );
 
   const statusIcon = (s: FileStatus) => {
