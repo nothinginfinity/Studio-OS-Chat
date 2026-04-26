@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, KeyboardEvent } from "react";
 import type { FileRecord, ChartSpec } from "../lib/types";
 import { FileViewer } from "./FileViewer";
 import { ViewerErrorBoundary } from "./ViewerErrorBoundary";
@@ -19,6 +19,8 @@ interface Props {
   /** A-3: called when user taps Remove */
   onRemove?: (fileId: string) => void;
 }
+
+type CsvTab = "table" | "charts";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -49,8 +51,13 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, 
   const backdropRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const triggerRef = useRef<Element | null>(null);
+
+  // B-3: tab state — default to "table"; reset when file changes
+  const [activeTab, setActiveTab] = useState<CsvTab>("table");
+  useEffect(() => { setActiveTab("table"); }, [file?.id]);
 
   useEffect(() => {
     triggerRef.current = document.activeElement;
@@ -81,8 +88,8 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, 
         }
       }
     }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown as unknown as EventListener);
+    return () => document.removeEventListener("keydown", onKeyDown as unknown as EventListener);
   }, []);
 
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
@@ -102,7 +109,7 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, 
   );
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
+    function onKey(e: globalThis.KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", onKey);
@@ -206,6 +213,22 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, 
     if (!onRemove) return;
     onRemove(file!.id);
     onClose();
+  }
+
+  // B-3: tab keyboard navigation (arrow keys)
+  const CSV_TABS: CsvTab[] = ["table", "charts"];
+  function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>, idx: number) {
+    let next = idx;
+    if (e.key === "ArrowRight") {
+      next = (idx + 1) % CSV_TABS.length;
+    } else if (e.key === "ArrowLeft") {
+      next = (idx - 1 + CSV_TABS.length) % CSV_TABS.length;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setActiveTab(CSV_TABS[next]);
+    tabRefs.current[next]?.focus();
   }
 
   const isCsv = file.sourceType === "csv";
@@ -337,13 +360,70 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, 
           )}
         </div>
 
+        {/* ── B-3: Tab bar (CSV only) ── */}
+        {isCsv && (
+          <div
+            className="fvm-tablist"
+            role="tablist"
+            aria-label="File view mode"
+          >
+            {CSV_TABS.map((tab, idx) => (
+              <button
+                key={tab}
+                ref={el => { tabRefs.current[idx] = el; }}
+                role="tab"
+                aria-selected={activeTab === tab}
+                aria-controls={`fvm-tabpanel-${tab}`}
+                id={`fvm-tab-${tab}`}
+                tabIndex={activeTab === tab ? 0 : -1}
+                className={`fvm-tab${activeTab === tab ? " fvm-tab--active" : ""}`}
+                onClick={() => setActiveTab(tab)}
+                onKeyDown={e => handleTabKeyDown(e, idx)}
+                type="button"
+              >
+                {tab === "table" ? "🗂 Table" : "📈 Charts"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* ── Content area ── */}
         <div className="fvm-content">
-          <ViewerErrorBoundary>
-            <FileViewer file={file} onDataReady={handleDataReady} />
-          </ViewerErrorBoundary>
-          {isCsv && chartSpecs.length > 0 && (
-            <CsvChartPanel specs={chartSpecs} rows={csvRows} />
+          {isCsv ? (
+            <>
+              {/* Table panel */}
+              <div
+                id="fvm-tabpanel-table"
+                role="tabpanel"
+                aria-labelledby="fvm-tab-table"
+                hidden={activeTab !== "table"}
+              >
+                <ViewerErrorBoundary>
+                  <FileViewer file={file} onDataReady={handleDataReady} />
+                </ViewerErrorBoundary>
+              </div>
+
+              {/* Charts panel */}
+              <div
+                id="fvm-tabpanel-charts"
+                role="tabpanel"
+                aria-labelledby="fvm-tab-charts"
+                hidden={activeTab !== "charts"}
+              >
+                {chartSpecs.length > 0
+                  ? <CsvChartPanel specs={chartSpecs} rows={csvRows} />
+                  : (
+                    <p className="fvm-charts-empty">
+                      No charts available — open the Table tab to load the data first.
+                    </p>
+                  )
+                }
+              </div>
+            </>
+          ) : (
+            <ViewerErrorBoundary>
+              <FileViewer file={file} onDataReady={handleDataReady} />
+            </ViewerErrorBoundary>
           )}
         </div>
 
