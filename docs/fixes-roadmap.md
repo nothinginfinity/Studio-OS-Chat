@@ -61,6 +61,52 @@ Five independent TypeScript errors accumulated across Phase 2–4 feature work, 
 
 ---
 
+## FIX-002 — CSV files not accepted by any upload path (IngestDropZone + Add Files)
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-04-25 |
+| **Severity** | 🟡 Runtime bug — feature entirely inaccessible to end user |
+| **Detected by** | User (live testing on mobile, confirmed by Bob via code audit) |
+| **Fixed by** | Pending — assigned to Alice |
+| **Commits** | TBD |
+| **CI green from** | TBD |
+
+### Root Cause
+
+Phase 6 (Track A + B) built a complete CSV ingestion and virtualized rendering pipeline (`csvIngestion.ts`, `CsvTableView.tsx`, RFC 4180 hardened parser, `@tanstack/react-virtual` virtualization for 10k+ rows). However, **neither upload entry point was wired to accept or route `.csv` files**. The OCR drop zone (`IngestDropZone.tsx`) hardcodes `accept="image/*,.pdf"` and its `processFile()` function returns `"Unsupported type"` for anything that is not `image/*` or `application/pdf`. The "Add Files" button similarly bypasses the CSV ingestion pipeline and calls `indexFile()` directly on the raw bytes, resulting in a FileRecord with no parseable text content — surfaced to the user as *"No text content available for preview."*
+
+In short: the CSV feature was built end-to-end but never connected to the front door.
+
+### Errors & Fixes
+
+| # | File | Problem | Fix Required |
+|---|---|---|---|
+| 1 | `src/components/IngestDropZone.tsx` | `<input accept="image/*,.pdf">` — `.csv` not in the accepted types list; file picker never shows CSV files | Add `,.csv,text/csv` to the `accept` attribute |
+| 2 | `src/components/IngestDropZone.tsx` | `processFile()` only branches on `isImage` and `isPdf`; CSVs fall through to `"Unsupported type"` error | Add `isCsv` detection (`file.type === 'text/csv' \|\| file.name.endsWith('.csv')`) and route to `csvIngestion` pipeline |
+| 3 | `src/components/IngestDropZone.tsx` | Drop zone label reads *"Drop images or PDFs here"* and subtitle only mentions OCR + PDF extraction — user has no hint CSV is supported | Update label/subtitle to include CSV |
+| 4 | Add Files button / handler (exact file TBD — likely `src/components/FilesPanel.tsx` or similar) | Raw `indexFile()` call does not parse CSV structure — stores bytes but no text content, showing *"No text content available for preview"* | Route `.csv` files through `csvIngestion.ts` before or instead of `indexFile()`, same as the PDF path uses `ingestPdfAsMarkdown()` |
+
+### Files Changed
+
+- `src/components/IngestDropZone.tsx` (confirmed)
+- Add Files handler file (Alice to identify exact component)
+
+### Inbox / Outbox References
+
+| Direction | Envelope ID | Subject | Timestamp |
+|---|---|---|---|
+| Bob → Alice | [`msg-bob-alice-20260426T005600Z`](https://github.com/nothinginfinity/Studio-OS-Chat/blob/main/spaces/alice.mmcp/inbox.md) | FIX-002 — CSV upload wiring missing — review + fix requested | 2026-04-26T00:56Z |
+
+### Lesson for Next Build
+
+- **Wire new ingestion pipelines to all upload entry points in the same PR that builds the pipeline** — csvIngestion.ts was completed in Phase 6 Track A but neither upload path was updated in the same work unit.
+- **Test every new file type end-to-end from the UI before closing a track** — a quick manual upload test would have caught this immediately.
+- **When adding a new supported file type, audit every `accept=` attribute and every file-type branch in the codebase** — a grep for `accept=` or `isImage\|isPdf` catches these gaps quickly.
+- **"Add Files" and the drop zone are two separate code paths** — any new file type support must be added to both independently; they do not share a single routing function.
+
+---
+
 ## Fix Entry Template
 
 Copy this block for each new fix:
