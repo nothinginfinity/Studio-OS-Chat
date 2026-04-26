@@ -40,7 +40,6 @@ function looksLikeDate(value: string): boolean {
 }
 
 function looksLikeNumeric(value: string): boolean {
-  // Strip currency symbols, thousands separators, trailing % sign
   const cleaned = value.trim().replace(/^[\$£€¥]/, '').replace(/,/g, '').replace(/%$/, '');
   return cleaned !== '' && isFinite(Number(cleaned));
 }
@@ -59,42 +58,28 @@ function detectType(nonNullValues: string[]): ColumnMeta['type'] {
 
 // ── CSV line re-joiner (A.3: multiline field support) ────────────────────────
 
-/**
- * Takes the array of raw lines (after CRLF normalisation) and re-joins any
- * lines that are continuations of a quoted field spanning multiple lines.
- *
- * A continuation is detected by counting unescaped double-quote characters:
- * if the running total is odd after a line ends, the next line is a
- * continuation of the current field.
- */
 export function rejoinMultilineFields(lines: string[]): string[] {
   const result: string[] = [];
   let buffer: string | null = null;
 
   for (const line of lines) {
     if (buffer === null) {
-      // Count quotes in this line
       const quoteCount = countUnescapedQuotes(line);
       if (quoteCount % 2 === 1) {
-        // Odd number of quotes → field continues on next line
         buffer = line;
       } else {
         result.push(line);
       }
     } else {
-      // We are inside a multiline field — append with the newline that was stripped
       buffer = buffer + '\n' + line;
       const quoteCount = countUnescapedQuotes(buffer);
       if (quoteCount % 2 === 0) {
-        // Even quote count → field is now closed
         result.push(buffer);
         buffer = null;
       }
-      // else: still open, keep accumulating
     }
   }
 
-  // If file ends mid-field, push whatever we have
   if (buffer !== null) {
     result.push(buffer);
   }
@@ -102,15 +87,12 @@ export function rejoinMultilineFields(lines: string[]): string[] {
   return result;
 }
 
-/**
- * Count double-quote characters in a string, skipping escaped pairs ("").
- */
 function countUnescapedQuotes(s: string): number {
   let count = 0;
   for (let i = 0; i < s.length; i++) {
     if (s[i] === '"') {
       if (s[i + 1] === '"') {
-        i++; // skip escape pair
+        i++;
       } else {
         count++;
       }
@@ -149,13 +131,6 @@ export function parseRow(line: string): string[] {
 
 // ── selectTemplates alias (roadmap API name) ─────────────────────────────────
 
-/**
- * Alias for inferChartSpecs matching the roadmap's `selectTemplates(csvMeta)`
- * call-site. fileId is generated internally so callers don't need to supply it.
- *
- * Returns 0-3 ChartSpec[] with source: 'template'.
- * No network or LLM calls.
- */
 export function selectTemplates(
   csvMeta: CsvMeta,
   rows: Record<string, string>[] = [],
@@ -164,39 +139,51 @@ export function selectTemplates(
   return inferChartSpecs(fileId, csvMeta, rows);
 }
 
-// ── Main export ──────────────────────────────────────────────────────────────
+// ── Result shape (tests expect flat properties) ──────────────────────────────
 
 export interface CsvParseResult {
-  csvMeta: CsvMeta;
-  /** Each row is a plain object keyed by column name */
-  rows: Record<string, string>[];
+  /** Convenience shorthand — same as csvMeta.rowCount */
+  rowCount: number;
+  /** Convenience shorthand — column names from csvMeta */
+  columns: string[];
+  /** Each row as an array of string values (positional, matches columns order) */
+  rows: string[][];
   /** Tab-separated text representation of all rows, for chunk storage */
   chunkText: string;
-  /**
-   * B-1: Auto-generated template ChartSpecs produced from csvMeta + rows.
-   * 0–3 entries. All have source: 'template'. No network call made.
-   * Callers should persist this onto FileRecord.chartSpecs via indexFile extra.
-   */
+  /** Full CsvMeta (column types, nullCount, samples) */
+  csvMeta: CsvMeta;
+  /** B-1: Auto-generated template ChartSpecs */
   chartSpecs: ChartSpec[];
-  /** Stable fileId used to generate chart spec ids — thread into indexFile extra. */
+  /** Stable fileId used to generate chart spec ids */
   fileId: string;
 }
 
-/**
- * Parse a File object as CSV.
- * Returns null if the file is too large, empty, or cannot be read.
- * No network or LLM calls are made.
- *
- * A.3: strips UTF-8 BOM, re-joins multiline quoted fields before line split.
- * B-1: calls inferChartSpecs and returns chartSpecs + fileId on result.
- */
-export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
+// ── File text reader — works in both browser and jsdom ───────────────────────
+
+function readFileAsText(file: File): Promise<string> {
+  // file.text() is not available in jsdom; fall back to FileReader
+  if (typeof file.text === 'function') {
+    return file.text();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+// ── Main export ──────────────────────────────────────────────────────────────
+
+export async function ingestCsv(file: File): Promise<CsvParseResult> {
+  if (file.size === 0) {
+    throw new Error('[csvIngestion] Empty file: ' + file.name);
+  }
   if (file.size > MAX_CSV_BYTES) {
-    console.warn('[csvIngestion] File exceeds 10 MB limit:', file.name);
-    return null;
+    throw new Error('[csvIngestion] File exceeds 10 MB limit: ' + file.name);
   }
 
-  let raw = await file.text();
+  let raw = await readFileAsText(file);
 
   // A.3 fix 1: Strip UTF-8 BOM if present
   if (raw.charCodeAt(0) === 0xFEFF) {
@@ -212,24 +199,33 @@ export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
 
   // Filter completely empty trailing lines
   const nonEmpty = lines.filter(l => l.trim() !== '');
-  if (nonEmpty.length < 2) return null; // need at least header + 1 data row
+
+  if (nonEmpty.length === 0) {
+    throw new Error('[csvIngestion] Empty file after parsing: ' + file.name);
+  }
 
   const headers = parseRow(nonEmpty[0]);
+  // header-only file is valid — 0 data rows
   const dataLines = nonEmpty.slice(1);
 
-  // Parse all rows
-  const rows: Record<string, string>[] = dataLines.map(line => {
+  // Parse all rows as arrays (positional)
+  const rows: string[][] = dataLines.map(line => {
     const values = parseRow(line);
+    // Pad to headers length
+    while (values.length < headers.length) values.push('');
+    return values.slice(0, headers.length);
+  });
+
+  // Build row objects for ColumnMeta / chartSpecs
+  const rowObjects: Record<string, string>[] = rows.map(values => {
     const row: Record<string, string> = {};
-    headers.forEach((h, i) => {
-      row[h] = values[i] ?? '';
-    });
+    headers.forEach((h, i) => { row[h] = values[i] ?? ''; });
     return row;
   });
 
   // Build ColumnMeta for each header
-  const columns: ColumnMeta[] = headers.map(name => {
-    const allValues = rows.map(r => r[name] ?? '');
+  const columnMetas: ColumnMeta[] = headers.map(name => {
+    const allValues = rowObjects.map(r => r[name] ?? '');
     const nullCount = allValues.filter(v => v.trim() === '').length;
     const nonNullValues = allValues.filter(v => v.trim() !== '');
     const type = detectType(nonNullValues);
@@ -237,19 +233,26 @@ export async function ingestCsv(file: File): Promise<CsvParseResult | null> {
     return { name, type, nullCount, sample };
   });
 
-  const csvMeta: CsvMeta = { columns, rowCount: rows.length };
+  const csvMeta: CsvMeta = { columns: columnMetas, rowCount: rows.length };
 
   // Build a plain text representation for chunk storage
-  // Format: one row per line, values tab-separated, header row first
   const chunkLines = [headers.join('\t')];
-  for (const row of rows) {
+  for (const row of rowObjects) {
     chunkLines.push(headers.map(h => row[h] ?? '').join('\t'));
   }
   const chunkText = chunkLines.join('\n');
 
-  // B-1: Generate template chart specs — no network, no LLM
+  // B-1: Generate template chart specs
   const fileId = uid();
-  const chartSpecs = inferChartSpecs(fileId, csvMeta, rows);
+  const chartSpecs = inferChartSpecs(fileId, csvMeta, rowObjects);
 
-  return { csvMeta, rows, chunkText, chartSpecs, fileId };
+  return {
+    rowCount: rows.length,
+    columns: headers,
+    rows,
+    chunkText,
+    csvMeta,
+    chartSpecs,
+    fileId,
+  };
 }
