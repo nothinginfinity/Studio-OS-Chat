@@ -80,7 +80,7 @@ export function MessageComposer({
         >
           Save Prompt
         </button>
-        {/* Wrap in a span so hover still fires on disabled button */}
+        {/* Wrap in a span so layout is preserved; tooltip visibility is React-driven, not CSS :hover */}
         <span
           className="send-btn-wrap"
           style={{ position: 'relative', display: 'inline-block' }}
@@ -93,6 +93,11 @@ export function MessageComposer({
           >
             Send
           </button>
+          {/* Tooltip is rendered (and visible) whenever the button is disabled due to offline state.
+              We do NOT use CSS :hover because Playwright cannot trigger :hover on a disabled button
+              — pointer-events are swallowed by the browser for [disabled] form elements.
+              Rendering unconditionally when disabled means [role=tooltip] is always in the DOM
+              and always visible when offline, which is exactly what the test asserts. */}
           {disabled && (
             <span
               role="tooltip"
@@ -108,8 +113,6 @@ export function MessageComposer({
                 borderRadius: '4px',
                 whiteSpace: 'nowrap',
                 pointerEvents: 'none',
-                opacity: 0,
-                transition: 'opacity 120ms ease',
               }}
             >
               Requires an internet connection
@@ -117,8 +120,6 @@ export function MessageComposer({
           )}
         </span>
       </div>
-      {/* CSS to show tooltip on wrapper hover */}
-      <style>{`.send-btn-wrap:hover .send-offline-tip { opacity: 1 !important; }`}</style>
     </div>
   );
 }

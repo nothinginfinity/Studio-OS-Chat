@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useFiles } from "../hooks/useFiles";
 import { searchLocalIndex } from "../lib/search";
 import type { SearchResult, FileRecord, FileRootRecord } from "../lib/types";
 import { FilePreviewSheet } from "./FilePreviewSheet";
 import { FileViewerModal } from "./FileViewerModal";
+import type { IndexedDocument } from "./FileViewerModal";
 import { useLongPress } from "../hooks/useLongPress";
 import { StorageQuotaBar } from "./StorageQuotaBar";
 import "../files.css";
@@ -39,6 +40,7 @@ function FileRootCard({
 
   return (
     <div
+      data-testid="file-root-card"
       className={[
         "file-root-card",
         "lp-item",
@@ -84,13 +86,25 @@ function FilesPanelEmptyState({ onAddFiles }: { onAddFiles: () => void }) {
   );
 }
 
+/** Adapter: converts a FileRecord to the IndexedDocument shape FileViewerModal expects */
+function fileRecordToIndexedDoc(file: FileRecord): IndexedDocument {
+  return {
+    id: file.id,
+    name: file.name,
+    sourceType: file.type as IndexedDocument['sourceType'],
+    content: (file as unknown as Record<string, unknown>).content,
+  };
+}
+
 export function FilesPanel() {
   const { roots, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeRoot, setActiveRoot] = useState<FileRootRecord | null>(null);
-  const [viewerFile, setViewerFile] = useState<FileRecord | null>(null);
+  // selectedDocId drives FileViewerModal — null means closed
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [viewerFileMap, setViewerFileMap] = useState<Record<string, FileRecord>>({});
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -117,21 +131,35 @@ export function FilesPanel() {
   }
 
   function handleOpenInViewer(file: FileRecord) {
-    setViewerFile(file);
+    setViewerFileMap(prev => ({ ...prev, [file.id]: file }));
+    setSelectedDocId(file.id);
   }
 
-  function handleViewerOpenInChat(file: FileRecord, contextText: string) {
-    window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
-      detail: { previewText: contextText, name: file.name }
-    }));
-    setViewerFile(null);
+  /** loadDocument satisfies FileViewerModal's async loader contract */
+  const loadDocument = useCallback(async (id: string): Promise<IndexedDocument> => {
+    const file = viewerFileMap[id];
+    if (!file) throw new Error(`File ${id} not found in panel cache`);
+    return fileRecordToIndexedDoc(file);
+  }, [viewerFileMap]);
+
+  function handleViewerOpenInChat(doc: IndexedDocument) {
+    const file = viewerFileMap[doc.id];
+    if (file) {
+      window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
+        detail: { previewText: String(doc.content ?? ''), name: doc.name }
+      }));
+    }
+    setSelectedDocId(null);
   }
 
-  function handleViewerAnalyzeInChat(file: FileRecord) {
-    window.dispatchEvent(new CustomEvent("studio:analyze-file", {
-      detail: { fileId: file.id }
-    }));
-    setViewerFile(null);
+  function handleViewerReIndex(id: string) {
+    const file = viewerFileMap[id];
+    if (file) {
+      window.dispatchEvent(new CustomEvent("studio:analyze-file", {
+        detail: { fileId: id }
+      }));
+    }
+    setSelectedDocId(null);
   }
 
   return (
@@ -222,14 +250,16 @@ export function FilesPanel() {
         onOpenInViewer={handleOpenInViewer}
       />
 
-      {viewerFile && (
-        <FileViewerModal
-          file={viewerFile}
-          onClose={() => setViewerFile(null)}
-          onOpenInChat={handleViewerOpenInChat}
-          onAnalyzeInChat={handleViewerAnalyzeInChat}
-        />
-      )}
+      {/* FileViewerModal is always mounted but renders null when selectedDocId is null.
+          selectedDocId is set when a file-root-card is clicked, which satisfies the
+          modal's useEffect guard (if (!docId) return) and triggers setOpen(true). */}
+      <FileViewerModal
+        docId={selectedDocId}
+        loadDocument={loadDocument}
+        onClose={() => setSelectedDocId(null)}
+        onOpenInChat={handleViewerOpenInChat}
+        onReIndex={handleViewerReIndex}
+      />
 
     </div>
   );
