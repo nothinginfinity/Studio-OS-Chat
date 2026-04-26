@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useFiles } from "../hooks/useFiles";
 import { searchLocalIndex } from "../lib/search";
+import { listFilesByRoot } from "../lib/db";
 import type { SearchResult, FileRecord, FileRootRecord } from "../lib/types";
 import { FilePreviewSheet } from "./FilePreviewSheet";
 import { FileViewerModal } from "./FileViewerModal";
@@ -94,20 +95,21 @@ function fileRecordToIndexedDoc(file: FileRecord): IndexedDocument {
   return {
     id: file.id,
     name: file.name,
-    sourceType: file.type as IndexedDocument['sourceType'],
+    sourceType: (file.sourceType ?? 'unknown') as IndexedDocument['sourceType'],
     content: (file as unknown as Record<string, unknown>).content,
     chartSpecs: file.chartSpecs,
   };
 }
 
 export function FilesPanel() {
-  const { roots, files, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
+  const { roots, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeRoot, setActiveRoot] = useState<FileRootRecord | null>(null);
   // selectedDocId drives FileViewerModal — null means closed
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  // Cache of FileRecord by id so loadDocument can resolve synchronously
   const [viewerFileMap, setViewerFileMap] = useState<Record<string, FileRecord>>({});
 
   async function handleSearch(e: React.FormEvent) {
@@ -134,6 +136,7 @@ export function FilesPanel() {
     }));
   }
 
+  /** Populate the viewer file map and open the modal for this specific file. */
   function handleOpenInViewer(file: FileRecord) {
     setViewerFileMap(prev => ({ ...prev, [file.id]: file }));
     setSelectedDocId(file.id);
@@ -141,19 +144,26 @@ export function FilesPanel() {
 
   /**
    * Called when a FileRootCard is single-clicked.
-   * Finds the first FileRecord belonging to that root and opens it in the viewer.
-   * Falls back to a synthetic IndexedDocument from the root record if no files
-   * are indexed yet (so the modal still opens and shows a loading/empty state).
+   *
+   * Queries IndexedDB for the first FileRecord belonging to the root.
+   * Falls back to a lightweight synthetic stub if the root has no files yet
+   * (not yet indexed) — the modal still opens and shows empty table/chart tabs.
    */
-  const handleRootCardClick = useCallback((root: FileRootRecord) => {
-    // Look for the first file belonging to this root
-    const firstFile = (files ?? []).find((f: FileRecord) => f.rootId === root.id);
-    if (firstFile) {
-      handleOpenInViewer(firstFile);
+  const handleRootCardClick = useCallback(async (root: FileRootRecord) => {
+    let file: FileRecord | undefined;
+    try {
+      const filesForRoot = await listFilesByRoot(root.id);
+      file = filesForRoot[0];
+    } catch {
+      // DB query failed — fall through to synthetic stub
+    }
+
+    if (file) {
+      handleOpenInViewer(file);
     } else {
-      // No files yet — create a synthetic doc so the modal opens
+      // Root exists but has no indexed files yet — open stub so modal appears
       const syntheticId = `root-${root.id}`;
-      const syntheticFile: FileRecord = {
+      const stub: FileRecord = {
         id: syntheticId,
         rootId: root.id,
         path: root.name,
@@ -166,34 +176,32 @@ export function FilesPanel() {
         sourceType: 'csv',
         ingestedAt: root.addedAt,
       };
-      handleOpenInViewer(syntheticFile);
+      handleOpenInViewer(stub);
     }
-  }, [files]);
+  }, []);
 
-  /** loadDocument satisfies FileViewerModal's async loader contract */
+  /**
+   * loadDocument satisfies FileViewerModal's async loader contract.
+   * By the time this is called, handleOpenInViewer has already added the
+   * FileRecord to viewerFileMap, so this always resolves immediately.
+   */
   const loadDocument = useCallback(async (id: string): Promise<IndexedDocument> => {
     const file = viewerFileMap[id];
-    if (!file) throw new Error(`File ${id} not found in panel cache`);
+    if (!file) throw new Error(`File ${id} not found — try re-indexing`);
     return fileRecordToIndexedDoc(file);
   }, [viewerFileMap]);
 
   function handleViewerOpenInChat(doc: IndexedDocument) {
-    const file = viewerFileMap[doc.id];
-    if (file) {
-      window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
-        detail: { previewText: String(doc.content ?? ''), name: doc.name }
-      }));
-    }
+    window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
+      detail: { previewText: String(doc.content ?? ''), name: doc.name }
+    }));
     setSelectedDocId(null);
   }
 
   function handleViewerReIndex(id: string) {
-    const file = viewerFileMap[id];
-    if (file) {
-      window.dispatchEvent(new CustomEvent("studio:analyze-file", {
-        detail: { fileId: id }
-      }));
-    }
+    window.dispatchEvent(new CustomEvent("studio:analyze-file", {
+      detail: { fileId: id }
+    }));
     setSelectedDocId(null);
   }
 
@@ -260,11 +268,11 @@ export function FilesPanel() {
           className="files-search-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search indexed files\u2026"
+          placeholder="Search indexed files…"
           aria-label="Search indexed files"
         />
         <button type="submit" className="files-search-btn" disabled={searching || !query.trim()}>
-          {searching ? "\u2026" : "Search"}
+          {searching ? "…" : "Search"}
         </button>
       </form>
 
@@ -280,6 +288,7 @@ export function FilesPanel() {
         </div>
       )}
 
+      {/* Long-press → FilePreviewSheet (unchanged behaviour) */}
       <FilePreviewSheet
         root={activeRoot}
         onClose={() => setActiveRoot(null)}
@@ -290,9 +299,11 @@ export function FilesPanel() {
         onOpenInViewer={handleOpenInViewer}
       />
 
-      {/* FileViewerModal is always mounted but renders null when selectedDocId is null.
-          selectedDocId is set when a file-root-card is single-clicked, which satisfies
-          the modal's useEffect guard and triggers setOpen(true). */}
+      {/*
+        FileViewerModal renders null when selectedDocId is null.
+        selectedDocId is set (and viewerFileMap is populated) by handleOpenInViewer,
+        which is called from handleRootCardClick after listFilesByRoot resolves.
+      */}
       <FileViewerModal
         docId={selectedDocId}
         loadDocument={loadDocument}
