@@ -8,7 +8,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    // Fix: Vite serves under /Studio-OS-Chat/ because base is set in vite.config.ts
+    baseURL: 'http://localhost:5173/Studio-OS-Chat/',
     trace: 'on-first-retry',
   },
   projects: [
@@ -19,7 +20,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: 'http://localhost:5173/Studio-OS-Chat/',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
