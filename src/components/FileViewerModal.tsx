@@ -5,11 +5,18 @@
  *   • Tab switch crossfade (C-2)
  *   • Uses design tokens throughout (A-1)
  *   • Respects prefers-reduced-motion
+ *   • Real CSV table (CsvTableView) + charts (CsvChartPanel) in body
+ *   • ViewerErrorBoundary wraps body content
+ *   • Supports window.__FORCE_VIEWER_ERROR__ for E2E error-boundary tests
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { tokens } from '../styles/tokens'
 import { useTheme } from '../hooks/useTheme'
 import { Skeleton } from './Skeleton'
+import { CsvTableView } from './CsvTableView'
+import { CsvChartPanel } from './CsvChartPanel'
+import { ViewerErrorBoundary } from './ViewerErrorBoundary'
+import type { ChartSpec } from '../lib/types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -20,6 +27,9 @@ export interface IndexedDocument {
   name: string
   sourceType: 'csv' | 'image' | 'json' | 'markdown' | 'pdf' | 'unknown'
   content?: unknown
+  rows?: Record<string, string>[]
+  headers?: string[]
+  chartSpecs?: ChartSpec[]
   [key: string]: unknown
 }
 
@@ -48,6 +58,62 @@ const ANIMATION_ENTER_MS = tokens.duration.normal  // 200
 const ANIMATION_EXIT_MS  = tokens.duration.fast    // 150
 const CROSSFADE_MS       = tokens.duration.fast    // 150
 
+/**
+ * Parse IndexedDocument content into rows + headers for CsvTableView.
+ * content may be:
+ *   - string (raw CSV)
+ *   - Record<string,string>[] (pre-parsed rows, already on doc.rows)
+ *   - unknown — fall back to empty
+ */
+function parseDocRows(
+  doc: IndexedDocument
+): { rows: Record<string, string>[]; headers: string[] } {
+  // Already pre-parsed
+  if (Array.isArray(doc.rows) && doc.rows.length > 0) {
+    const headers = doc.headers ?? Object.keys(doc.rows[0])
+    return { rows: doc.rows, headers }
+  }
+
+  // Raw CSV string in content
+  if (typeof doc.content === 'string' && doc.content.trim().length > 0) {
+    const lines = doc.content.trim().split(/\r?\n/)
+    if (lines.length < 2) return { rows: [], headers: [] }
+    const headers = lines[0].split(',')
+    const rows = lines.slice(1).map(line => {
+      const vals = line.split(',')
+      const row: Record<string, string> = {}
+      headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
+      return row
+    })
+    return { rows, headers }
+  }
+
+  return { rows: [], headers: [] }
+}
+
+/**
+ * Build a minimal ChartSpec array from the document so CsvChartPanel
+ * always has at least one spec to render a <canvas> for the charts tab.
+ */
+function buildChartSpecs(doc: IndexedDocument, headers: string[]): ChartSpec[] {
+  // Use persisted specs if available
+  if (Array.isArray(doc.chartSpecs) && doc.chartSpecs.length > 0) {
+    return doc.chartSpecs
+  }
+  // Synthesise a bar chart from first two columns
+  if (headers.length >= 2) {
+    return [{
+      id: `${doc.id}-auto-bar`,
+      type: 'bar',
+      title: `${headers[1]} by ${headers[0]}`,
+      xKey: headers[0],
+      yKeys: [headers[1]],
+      source: 'template',
+    }]
+  }
+  return []
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function FileViewerModal({
@@ -73,6 +139,7 @@ export function FileViewerModal({
 
   // ── Tab state ──
   const [activeTab,   setActiveTab]   = useState<TabId>('table')
+  const [tablePage,   setTablePage]   = useState(0)
   const [crossfading, setCrossfading] = useState(false)
   const crossfadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -83,6 +150,7 @@ export function FileViewerModal({
     setDoc(null)
     setError(null)
     setLoading(true)
+    setTablePage(0)
     setOpen(true)
     requestAnimationFrame(() => {
       setVisible(true)
@@ -91,6 +159,16 @@ export function FileViewerModal({
         setTimeout(() => { if (!cancelled) setEntering(false) }, ANIMATION_ENTER_MS)
       }
     })
+    // Support E2E error injection via window.__FORCE_VIEWER_ERROR__
+    const forceError = typeof window !== 'undefined' &&
+      (window as unknown as Record<string, unknown>).__FORCE_VIEWER_ERROR__ === true
+    if (forceError) {
+      if (!cancelled) {
+        setError('Forced viewer error for testing')
+        setLoading(false)
+      }
+      return () => { cancelled = true }
+    }
     loadDocument(docId)
       .then(d  => { if (!cancelled) { setDoc(d); setLoading(false) } })
       .catch(e => { if (!cancelled) { setError(String(e?.message ?? e)); setLoading(false) } })
@@ -191,12 +269,16 @@ export function FileViewerModal({
     </div>
   )
 
+  // Derive rows/headers/specs from loaded doc
+  const { rows, headers } = doc ? parseDocRows(doc) : { rows: [], headers: [] }
+  const chartSpecs = doc ? buildChartSpecs(doc, headers) : []
+
   return (
     <div
       data-testid="file-viewer-modal"
       role="dialog"
       aria-modal="true"
-      aria-label={doc ? doc.name : 'Loading file…'}
+      aria-label={doc ? doc.name : 'Loading file\u2026'}
       style={backdropStyle}
       onClick={e => { if (e.target === e.currentTarget) handleClose() }}
     >
@@ -237,13 +319,13 @@ export function FileViewerModal({
               aria-label="Close"
               style={{ ...toolbarBtn(surf.overlay, txt.secondary), fontWeight: 700, fontSize: `${tokens.font.lg}px`, lineHeight: 1 }}
             >
-              ×
+              \u00d7
             </button>
           </div>
         </div>
 
-        {/* ── Tab bar ── */}
-        {!loading && doc && (
+        {/* ── Tab bar — only shown when doc is loaded ── */}
+        {!loading && !error && doc && (
           <div
             role="tablist"
             style={{
@@ -290,26 +372,80 @@ export function FileViewerModal({
             transition:    prefersReducedMotion() ? 'none' : `opacity ${CROSSFADE_MS}ms ease`,
           }}
         >
+          {/* Skeleton while loading */}
           {loading && SkeletonContent}
+
+          {/* Error state — wrapped in ViewerErrorBoundary for React render errors;
+              async load errors surface here via setError() */}
           {!loading && error && (
-            <div style={{ padding: `${tokens.space.lg}px`, color: colors.status.error, fontSize: `${tokens.font.sm}px` }}>
-              <strong>Couldn't load this file</strong>
-              <pre style={{ marginTop: `${tokens.space.xs}px`, whiteSpace: 'pre-wrap', fontSize: `${tokens.font.xs}px`, color: txt.secondary }}>
-                {error}
-              </pre>
-              {onReIndex && doc && (
-                <button onClick={() => onReIndex(doc.id)} style={toolbarBtn(colors.status.error, txt.inverse)}>
-                  Try re-indexing
-                </button>
-              )}
-            </div>
+            <ViewerErrorBoundary
+              sourceType={doc?.sourceType as 'csv' | 'json' | 'image' | 'pdf' | 'markdown' | 'unknown' | undefined ?? 'unknown'}
+              onReIndex={onReIndex && docId ? () => onReIndex(docId) : undefined}
+            >
+              <div
+                role="alert"
+                style={{
+                  padding:   `${tokens.space.lg}px`,
+                  color:     colors.status.error,
+                  fontSize:  `${tokens.font.sm}px`,
+                }}
+              >
+                <strong>Couldn&apos;t load this file</strong>
+                <pre style={{
+                  marginTop:    `${tokens.space.xs}px`,
+                  whiteSpace:   'pre-wrap',
+                  fontSize:     `${tokens.font.xs}px`,
+                  color:        txt.secondary,
+                }}>
+                  {error}
+                </pre>
+                {onReIndex && docId && (
+                  <button
+                    onClick={() => onReIndex(docId)}
+                    style={toolbarBtn(colors.status.error, txt.inverse)}
+                  >
+                    Try re-indexing
+                  </button>
+                )}
+              </div>
+            </ViewerErrorBoundary>
           )}
+
+          {/* Real document content */}
           {!loading && !error && doc && (
-            <div style={{ padding: `${tokens.space.md}px` }}>
-              <p style={{ color: txt.secondary, fontSize: `${tokens.font.sm}px` }}>
-                [{activeTab} content for {doc.name}]
-              </p>
-            </div>
+            <ViewerErrorBoundary
+              sourceType={doc.sourceType as 'csv' | 'json' | 'image' | 'pdf' | 'markdown' | 'unknown'}
+              onReIndex={onReIndex && docId ? () => onReIndex(docId) : undefined}
+            >
+              <div style={{ padding: `${tokens.space.md}px` }}>
+                {/* Table tab — CsvTableView renders <tr data-testid="csv-table-row"> */}
+                {activeTab === 'table' && (
+                  <CsvTableView
+                    rows={rows}
+                    headers={headers}
+                    page={tablePage}
+                    pageSize={100}
+                    onPageChange={setTablePage}
+                  />
+                )}
+                {/* Charts tab — CsvChartPanel renders <canvas> elements */}
+                {activeTab === 'charts' && (
+                  <CsvChartPanel
+                    specs={chartSpecs}
+                    rows={rows}
+                  />
+                )}
+                {/* Non-CSV file types: show a plain content preview */}
+                {doc.sourceType !== 'csv' && rows.length === 0 && (
+                  <p style={{ color: txt.secondary, fontSize: `${tokens.font.sm}px` }}>
+                    {typeof doc.content === 'string'
+                      ? doc.content.slice(0, 2000)
+                      : `No preview available for ${doc.name}`
+                    }
+                  </p>
+                )}
+              </div>
+            </ViewerErrorBoundary>
           )}
         </div>
       </div>

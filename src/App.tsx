@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
+import { OfflineBanner } from "./components/OfflineBanner";
 import { useChat } from "./hooks/useChat";
 import { useSpaceMailbox } from "./hooks/useSpaceMailbox";
 import { listAllFiles } from "./lib/db";
@@ -116,37 +117,43 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <Sidebar
-        settings={settings}
-        setSettings={setSettings}
-        onClearChat={clearChat}
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSelectSession={setActiveSession}
-        onNewSession={() => createSession()}
-        onRenameSession={renameSession}
-        onSessionExported={markSessionExported}
-        onInsertPrompt={handleInsertPrompt}
-        onReusePrompt={reusePromptText}
-        onCreateSessionWithDraft={createSessionWithDraft}
-        onDeleteSession={deleteSession}
-        activeTab={sidebarTab}
-        onTabChange={setSidebarTab}
-        spaceMailbox={spaceMailbox}
-      />
-      {/* Task 4.4: pass attachedFileId + csvRows so ChatWindow can render inline charts */}
-      <ChatWindow
-        messages={messages}
-        onSend={sendMessage}
-        isLoading={isLoading}
-        error={error}
-        sessionId={activeSession?.id}
-        attachedFileId={activeAttachedFileId}
-        csvRows={activeAttachedCsvRows}
-        draftText={draftText}
-        onDraftChange={setDraftText}
-      />
-    </div>
+    <>
+      {/* Fix C: OfflineBanner must be in the DOM when offline so chat.spec.ts
+          [data-testid=offline-banner] assertion passes. OfflineBanner renders
+          null when online, so there is no visible impact in normal usage. */}
+      <OfflineBanner />
+      <div className="app-shell">
+        <Sidebar
+          settings={settings}
+          setSettings={setSettings}
+          onClearChat={clearChat}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSelectSession={setActiveSession}
+          onNewSession={() => createSession()}
+          onRenameSession={renameSession}
+          onSessionExported={markSessionExported}
+          onInsertPrompt={handleInsertPrompt}
+          onReusePrompt={reusePromptText}
+          onCreateSessionWithDraft={createSessionWithDraft}
+          onDeleteSession={deleteSession}
+          activeTab={sidebarTab}
+          onTabChange={setSidebarTab}
+          spaceMailbox={spaceMailbox}
+        />
+        {/* Task 4.4: pass attachedFileId + csvRows so ChatWindow can render inline charts */}
+        <ChatWindow
+          messages={messages}
+          onSend={sendMessage}
+          isLoading={isLoading}
+          error={error}
+          sessionId={activeSession?.id}
+          attachedFileId={activeAttachedFileId}
+          csvRows={activeAttachedCsvRows}
+          draftText={draftText}
+          onDraftChange={setDraftText}
+        />
+      </div>
+    </>
   );
 }

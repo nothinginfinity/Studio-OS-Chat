@@ -25,9 +25,11 @@ function relativeTime(ts: number | null): string {
 function FileRootCard({
   root,
   onLongPress,
+  onOpenInViewer,
 }: {
   root: FileRootRecord;
   onLongPress: (root: FileRootRecord) => void;
+  onOpenInViewer: (root: FileRootRecord) => void;
 }) {
   const { bind, isPressed, longPressTriggeredRef } = useLongPress({
     onLongPress: () => onLongPress(root),
@@ -35,7 +37,8 @@ function FileRootCard({
 
   function handleClick() {
     if (longPressTriggeredRef.current) return;
-    onLongPress(root);
+    // Single click → open in FileViewerModal
+    onOpenInViewer(root);
   }
 
   return (
@@ -49,7 +52,7 @@ function FileRootCard({
       onClick={handleClick}
       role="button"
       tabIndex={0}
-      aria-label={`Preview ${root.name}`}
+      aria-label={`Open ${root.name} in file viewer`}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleClick(); }}
       {...bind}
     >
@@ -93,11 +96,12 @@ function fileRecordToIndexedDoc(file: FileRecord): IndexedDocument {
     name: file.name,
     sourceType: file.type as IndexedDocument['sourceType'],
     content: (file as unknown as Record<string, unknown>).content,
+    chartSpecs: file.chartSpecs,
   };
 }
 
 export function FilesPanel() {
-  const { roots, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
+  const { roots, files, progress, isIndexing, error, addFolder, addFiles, removeRoot, reindexRoot } = useFiles();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -134,6 +138,37 @@ export function FilesPanel() {
     setViewerFileMap(prev => ({ ...prev, [file.id]: file }));
     setSelectedDocId(file.id);
   }
+
+  /**
+   * Called when a FileRootCard is single-clicked.
+   * Finds the first FileRecord belonging to that root and opens it in the viewer.
+   * Falls back to a synthetic IndexedDocument from the root record if no files
+   * are indexed yet (so the modal still opens and shows a loading/empty state).
+   */
+  const handleRootCardClick = useCallback((root: FileRootRecord) => {
+    // Look for the first file belonging to this root
+    const firstFile = (files ?? []).find((f: FileRecord) => f.rootId === root.id);
+    if (firstFile) {
+      handleOpenInViewer(firstFile);
+    } else {
+      // No files yet — create a synthetic doc so the modal opens
+      const syntheticId = `root-${root.id}`;
+      const syntheticFile: FileRecord = {
+        id: syntheticId,
+        rootId: root.id,
+        path: root.name,
+        name: root.name,
+        ext: '',
+        size: 0,
+        modifiedAt: root.addedAt,
+        contentHash: '',
+        indexedAt: 0,
+        sourceType: 'csv',
+        ingestedAt: root.addedAt,
+      };
+      handleOpenInViewer(syntheticFile);
+    }
+  }, [files]);
 
   /** loadDocument satisfies FileViewerModal's async loader contract */
   const loadDocument = useCallback(async (id: string): Promise<IndexedDocument> => {
@@ -205,7 +240,12 @@ export function FilesPanel() {
           </div>
           <div className="files-sources-list">
             {roots.map((root) => (
-              <FileRootCard key={root.id} root={root} onLongPress={setActiveRoot} />
+              <FileRootCard
+                key={root.id}
+                root={root}
+                onLongPress={setActiveRoot}
+                onOpenInViewer={handleRootCardClick}
+              />
             ))}
           </div>
         </div>
@@ -220,11 +260,11 @@ export function FilesPanel() {
           className="files-search-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search indexed files…"
+          placeholder="Search indexed files\u2026"
           aria-label="Search indexed files"
         />
         <button type="submit" className="files-search-btn" disabled={searching || !query.trim()}>
-          {searching ? "…" : "Search"}
+          {searching ? "\u2026" : "Search"}
         </button>
       </form>
 
@@ -251,8 +291,8 @@ export function FilesPanel() {
       />
 
       {/* FileViewerModal is always mounted but renders null when selectedDocId is null.
-          selectedDocId is set when a file-root-card is clicked, which satisfies the
-          modal's useEffect guard (if (!docId) return) and triggers setOpen(true). */}
+          selectedDocId is set when a file-root-card is single-clicked, which satisfies
+          the modal's useEffect guard and triggers setOpen(true). */}
       <FileViewerModal
         docId={selectedDocId}
         loadDocument={loadDocument}
