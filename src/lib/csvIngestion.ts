@@ -111,6 +111,9 @@ function countUnescapedQuotes(s: string): number {
  *   - quoted fields with embedded commas and newlines
  *   - RFC 4180 doubled-quote escaping: "" → "
  *   - backslash-escaped quote extension: \" → "
+ *   - lenient inner bare-quote: a `"` inside a quoted field that is NOT
+ *     followed by `,`, `\n`, or end-of-string is treated as a literal
+ *     character (matches Python csv-module behaviour).
  */
 export function parseRow(line: string): string[] {
   const fields: string[] = [];
@@ -130,8 +133,15 @@ export function parseRow(line: string): string[] {
         field += '"';
         i++;
       } else if (ch === '"') {
-        // Closing quote
-        inQuotes = false;
+        // Lenient RFC 4180 closing-quote logic:
+        // Only treat as closing delimiter if followed by , \n or end-of-string.
+        // Otherwise treat as a literal inner quote and stay in the field.
+        const next = line[i + 1];
+        if (next === ',' || next === undefined || next === '\n') {
+          inQuotes = false; // real closing delimiter
+        } else {
+          field += '"'; // bare inner quote — treat as literal
+        }
       } else {
         field += ch;
       }
