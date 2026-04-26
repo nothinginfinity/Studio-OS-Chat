@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useFiles } from "../hooks/useFiles";
 import { searchLocalIndex } from "../lib/search";
-import type { SearchResult, FileRootRecord } from "../lib/types";
+import type { SearchResult, FileRecord, FileRootRecord } from "../lib/types";
 import { FilePreviewSheet } from "./FilePreviewSheet";
+import { FileViewerModal } from "./FileViewerModal";
 import { useLongPress } from "../hooks/useLongPress";
 import "../files.css";
 
@@ -67,6 +68,8 @@ export function FilesPanel() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeRoot, setActiveRoot] = useState<FileRootRecord | null>(null);
+  // A-1: state for FileViewerModal
+  const [viewerFile, setViewerFile] = useState<FileRecord | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -86,11 +89,31 @@ export function FilesPanel() {
     }));
   }
 
-  // Task 4.4: dispatch studio:analyze-file so App.tsx can call analyzeFileInChat
   function handleAnalyzeInChat(fileId: string) {
     window.dispatchEvent(new CustomEvent("studio:analyze-file", {
       detail: { fileId }
     }));
+  }
+
+  // A-1: open FileViewerModal with the selected FileRecord
+  function handleOpenInViewer(file: FileRecord) {
+    setViewerFile(file);
+  }
+
+  // A-3: "Open in Chat" from FileViewerModal — dispatch new-chat-from-file
+  function handleViewerOpenInChat(file: FileRecord, contextText: string) {
+    window.dispatchEvent(new CustomEvent("studio:new-chat-from-file", {
+      detail: { previewText: contextText, name: file.name }
+    }));
+    setViewerFile(null);
+  }
+
+  // A-3: "Analyze in Chat" from FileViewerModal
+  function handleViewerAnalyzeInChat(file: FileRecord) {
+    window.dispatchEvent(new CustomEvent("studio:analyze-file", {
+      detail: { fileId: file.id }
+    }));
+    setViewerFile(null);
   }
 
   return (
@@ -171,6 +194,7 @@ export function FilesPanel() {
         </div>
       )}
 
+      {/* A-1: FilePreviewSheet now wires onOpenInViewer */}
       <FilePreviewSheet
         root={activeRoot}
         onClose={() => setActiveRoot(null)}
@@ -178,7 +202,19 @@ export function FilesPanel() {
         onRemove={removeRoot}
         onNewChatFromFile={handleNewChatFromFile}
         onAnalyzeInChat={handleAnalyzeInChat}
+        onOpenInViewer={handleOpenInViewer}
       />
+
+      {/* A-1: FileViewerModal — opens when viewerFile is set */}
+      {viewerFile && (
+        <FileViewerModal
+          file={viewerFile}
+          onClose={() => setViewerFile(null)}
+          onOpenInChat={handleViewerOpenInChat}
+          onAnalyzeInChat={handleViewerAnalyzeInChat}
+        />
+      )}
+
     </div>
   );
 }

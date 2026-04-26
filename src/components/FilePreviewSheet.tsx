@@ -25,35 +25,39 @@ interface Props {
   onNewChatFromFile: (rootId: string, previewText: string, name: string) => void;
   /** Task 4.4: called with the CSV FileRecord.id when user taps "Analyze in Chat" */
   onAnalyzeInChat?: (fileId: string) => void;
+  /** A-1: called when user taps "Open in Viewer" for a specific file */
+  onOpenInViewer?: (file: FileRecord) => void;
 }
 
-export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChatFromFile, onAnalyzeInChat }: Props) {
+export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChatFromFile, onAnalyzeInChat, onOpenInViewer }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const [fileCount, setFileCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  // Track the first CSV file found in this root so we can offer Analyze in Chat
   const [csvFile, setCsvFile] = useState<FileRecord | null>(null);
+  // A-1: first file in root for viewer dispatch
+  const [firstFile, setFirstFile] = useState<FileRecord | null>(null);
 
   useEffect(() => {
-    if (!root) { setPreview(null); setFileCount(0); setCsvFile(null); return; }
+    if (!root) { setPreview(null); setFileCount(0); setCsvFile(null); setFirstFile(null); return; }
     setLoading(true);
     setExpanded(false);
     (async () => {
       try {
         const files = await listFilesByRoot(root.id);
         setFileCount(files.length);
+        setFirstFile(files[0] ?? null);
         if (files.length === 0) { setPreview(null); setCsvFile(null); return; }
         const chunks = await listChunksByFile(files[0].id);
         const text = chunks.slice(0, 3).map(c => c.text).join("\n\n").trim();
         setPreview(text || null);
-        // Find the first CSV file so we can offer Analyze in Chat
         const firstCsv = files.find((f) => f.sourceType === "csv") ?? null;
         setCsvFile(firstCsv);
       } catch {
         setPreview(null);
         setCsvFile(null);
+        setFirstFile(null);
       } finally {
         setLoading(false);
       }
@@ -63,7 +67,7 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
   if (!root) return null;
 
   const displayText = preview
-    ? (expanded ? preview : preview.slice(0, 420) + (preview.length > 420 ? "…" : ""))
+    ? (expanded ? preview : preview.slice(0, 420) + (preview.length > 420 ? "\u2026" : ""))
     : null;
 
   function handleCopy() {
@@ -87,6 +91,15 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
   function handleAnalyzeInChat() {
     if (!csvFile || !onAnalyzeInChat) return;
     onAnalyzeInChat(csvFile.id);
+    onClose();
+  }
+
+  // A-1: open the first (or best) file in the FileViewerModal
+  function handleOpenInViewer() {
+    if (!firstFile || !onOpenInViewer) return;
+    // Prefer CSV file if present (richer viewer), otherwise first file
+    const target = csvFile ?? firstFile;
+    onOpenInViewer(target);
     onClose();
   }
 
@@ -148,6 +161,17 @@ export function FilePreviewSheet({ root, onClose, onReindex, onRemove, onNewChat
 
       {/* ── Actions ── */}
       <div className="action-sheet-actions">
+
+        {/* A-1: Open in Viewer — available whenever there's at least one indexed file */}
+        {firstFile && onOpenInViewer && root.lastIndexedAt && (
+          <button className="action-sheet-btn" onClick={handleOpenInViewer}>
+            <span className="action-sheet-btn-icon">🔍</span>
+            <span className="action-sheet-btn-label">
+              <strong>Open in Viewer</strong>
+              <span className="action-sheet-btn-hint">View file content, charts, and metadata</span>
+            </span>
+          </button>
+        )}
 
         {/* Task 4.4: Analyze in Chat — CSV only */}
         {csvFile && onAnalyzeInChat && (

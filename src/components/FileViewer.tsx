@@ -4,6 +4,7 @@ import { listChunksByFile } from "../lib/db";
 import { CsvTableView } from "./CsvTableView";
 import { JsonTreeView } from "./JsonTreeView";
 import { MarkdownView } from "./MarkdownView";
+import { OcrImageView } from "./OcrImageView";
 import { inferChartSpecs } from "../lib/chartTemplates";
 
 const PAGE_SIZE = 100;
@@ -24,16 +25,6 @@ function PdfView({ text }: { text: string }) {
   );
 }
 
-function ImageView({ file }: { file: FileRecord }) {
-  return (
-    <div className="fv-unsupported">
-      <span className="fv-unsupported-icon">🖼</span>
-      <p>Image viewer coming soon.</p>
-      <p className="fv-unsupported-name">{file.name}</p>
-    </div>
-  );
-}
-
 function PlainTextView({ text }: { text: string }) {
   return (
     <div className="fv-text-view">
@@ -42,7 +33,7 @@ function PlainTextView({ text }: { text: string }) {
   );
 }
 
-// Task 5.4: Richer unsupported-type fallback
+// A-2: Richer unsupported-type fallback
 const SUPPORTED_EXTENSIONS = [
   "csv", "pdf", "json",
   "md", "txt",
@@ -100,7 +91,7 @@ export function FileViewer({ file, onDataReady }: Props) {
           }
           const cols = file.csvMeta.columns.map(c => c.name);
           setHeaders(cols);
-          // A.6 fix: chunkText is tab-separated (csvIngestion.ts uses \t); use split('\t')
+          // A.6 fix: chunkText is tab-separated (csvIngestion.ts uses \t)
           const parsed = lines.map(line => {
             const vals = line.split("\t");
             const row: Record<string, string> = {};
@@ -138,6 +129,7 @@ export function FileViewer({ file, onDataReady }: Props) {
 
   const ext = file.ext?.toLowerCase() ?? "";
 
+  // A-2: Full dispatch by sourceType
   switch (file.sourceType) {
     case "csv":
       return (
@@ -157,7 +149,8 @@ export function FileViewer({ file, onDataReady }: Props) {
     case "ocr":
     case "file": {
       if (["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext)) {
-        return <ImageView file={file} />;
+        // A-2: dispatch to OcrImageView (full impl in C-2)
+        return <OcrImageView file={file} />;
       }
       if (ext === "json") {
         return <JsonTreeView raw={textContent} />;

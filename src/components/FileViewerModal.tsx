@@ -14,6 +14,10 @@ interface Props {
    *  Only shown for CSV files. The caller creates the session via
    *  createChatSession({ attachedFileId: file.id }) and navigates to chat. */
   onAnalyzeInChat?: (file: FileRecord) => void;
+  /** A-3: called when user taps Re-index */
+  onReindex?: (fileId: string) => void;
+  /** A-3: called when user taps Remove */
+  onRemove?: (fileId: string) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -38,31 +42,26 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
   ).filter(el => !el.closest('[aria-hidden="true"]'));
 }
 
-export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }: Props) {
+export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat, onReindex, onRemove }: Props) {
   const [copied, setCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [shared, setShared] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  // E.5-F1: Capture the element that had focus before the modal opened,
-  // so we can return focus to it when the modal closes.
   const triggerRef = useRef<Element | null>(null);
 
-  // E.5-F1: On mount — capture trigger, move focus into modal (close button).
   useEffect(() => {
     triggerRef.current = document.activeElement;
     closeBtnRef.current?.focus();
     return () => {
-      // E.5-F1: On unmount — return focus to the element that opened the modal.
       if (triggerRef.current && "focus" in triggerRef.current) {
         (triggerRef.current as HTMLElement).focus();
       }
     };
   }, []);
 
-  // E.5-F2: Focus trap — Tab and Shift+Tab cycle only within fvm-shell.
-  // Prevents keyboard focus from escaping to the background page (WCAG 2.1.2).
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Tab" || !shellRef.current) return;
@@ -71,13 +70,11 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey) {
-        // Shift+Tab from first → wrap to last
         if (document.activeElement === first) {
           e.preventDefault();
           last.focus();
         }
       } else {
-        // Tab from last → wrap to first
         if (document.activeElement === last) {
           e.preventDefault();
           first.focus();
@@ -88,11 +85,9 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Lifted CSV state — populated via FileViewer's onDataReady callback
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [chartSpecs, setChartSpecs] = useState<ChartSpec[]>([]);
 
-  // Reset chart/rows state whenever the viewed file changes
   useEffect(() => {
     setCsvRows([]);
     setChartSpecs([]);
@@ -106,7 +101,6 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
     [],
   );
 
-  // Close on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -115,7 +109,6 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Trap scroll behind modal
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -188,7 +181,35 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
     onClose();
   }
 
+  // A-3: Share — Web Share API
+  async function handleShare() {
+    try {
+      const chunks = await listChunksByFile(file!.id);
+      const text = chunks.map(c => c.text).join("\n");
+      await navigator.share({ text, title: file!.name });
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    } catch {
+      // share cancelled or unavailable — silent
+    }
+  }
+
+  // A-3: Re-index
+  function handleReindex() {
+    if (!onReindex) return;
+    onReindex(file!.id);
+    onClose();
+  }
+
+  // A-3: Remove
+  function handleRemove() {
+    if (!onRemove) return;
+    onRemove(file!.id);
+    onClose();
+  }
+
   const isCsv = file.sourceType === "csv";
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   return (
     <div
@@ -199,7 +220,6 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
       aria-modal="true"
       aria-label={`File viewer: ${file.name}`}
     >
-      {/* E.5-F2: shellRef scopes the focus trap to modal content only */}
       <div className="fvm-shell" ref={shellRef}>
 
         {/* ── Header bar ── */}
@@ -217,7 +237,6 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
               </span>
             </div>
           </div>
-          {/* E.5-F1: ref added so useEffect can programmatically focus this button on mount */}
           <button
             ref={closeBtnRef}
             className="fvm-close-btn"
@@ -231,7 +250,6 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
 
         {/* ── Toolbar ── */}
         <div className="fvm-toolbar">
-          {/* E.5-F3: type="button" on all toolbar buttons — prevents accidental form submission */}
           <button
             className="fvm-tool-btn"
             onClick={handleCopyAsMarkdown}
@@ -241,6 +259,19 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
             <span className="fvm-tool-icon">{copied ? "✓" : "⌘"}</span>
             <span>{copied ? "Copied!" : "Copy as Markdown"}</span>
           </button>
+
+          {/* A-3: Share via Web Share API */}
+          {canShare && (
+            <button
+              className="fvm-tool-btn"
+              onClick={handleShare}
+              title="Share"
+              type="button"
+            >
+              <span className="fvm-tool-icon">{shared ? "✓" : "↥"}</span>
+              <span>{shared ? "Shared!" : "Share"}</span>
+            </button>
+          )}
 
           {onOpenInChat && (
             <button
@@ -254,7 +285,6 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
             </button>
           )}
 
-          {/* Phase 4: Analyze in Chat — CSV only, LLM opt-in */}
           {isCsv && onAnalyzeInChat && (
             <button
               className="fvm-tool-btn fvm-tool-btn--analyze"
@@ -277,6 +307,32 @@ export function FileViewerModal({ file, onClose, onOpenInChat, onAnalyzeInChat }
             >
               <span className="fvm-tool-icon">↧</span>
               <span>{exporting ? "Exporting…" : "Export CSV"}</span>
+            </button>
+          )}
+
+          {/* A-3: Re-index */}
+          {onReindex && (
+            <button
+              className="fvm-tool-btn"
+              onClick={handleReindex}
+              title="Re-index this file"
+              type="button"
+            >
+              <span className="fvm-tool-icon">↻</span>
+              <span>Re-index</span>
+            </button>
+          )}
+
+          {/* A-3: Remove */}
+          {onRemove && (
+            <button
+              className="fvm-tool-btn fvm-tool-btn--destructive"
+              onClick={handleRemove}
+              title="Remove this file"
+              type="button"
+            >
+              <span className="fvm-tool-icon">🗑️</span>
+              <span>Remove</span>
             </button>
           )}
         </div>
