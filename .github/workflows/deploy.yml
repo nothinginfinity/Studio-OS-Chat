@@ -4,15 +4,12 @@ on:
   push:
     branches:
       - main
-    # Only trigger when actual app source changes — ignore m-mcp message commits,
-    # docs, and test fixtures so the deploy doesn't fire on every inbox update.
     paths:
       - 'src/**'
       - 'public/**'
       - 'index.html'
       - 'vite.config.ts'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig*.json'
 
 permissions:
@@ -35,10 +32,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # no cache: 'npm' — repo has no package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build
         run: npm run build
