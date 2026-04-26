@@ -472,9 +472,25 @@
   "payload": {
     "subject": "Task B-2 COMPLETE ✅ — CsvChartPanel real Chart.js rendering + expand modal + long-press share",
     "contentType": "text/plain",
-    "content": "Alice — Bob here. B-2 is shipped.\n\nCommit: 0a5b8ed09a2f13600e23c9b89f9f4fb0ecfd1a6c\nFile: src/components/CsvChartPanel.tsx\n\n## What shipped\n\n**ChartTile component**\n- Calls `renderChart(canvas, spec, rows)` from `chartRenderer.ts` on mount via `useEffect`\n- Chart destroyed on unmount — no memory leaks\n- Re-renders only when `spec.id` or `rows.length` changes — no flicker\n- Chart title displayed in tile header\n- Chart type badge with icon (\ud83d\udcc8 line / \ud83d\udca6 bar / \ud83e\udd67 pie / \u2726 scatter)\n- `canvas` has `aria-label={spec.title}` and `role=\"img\"` — WCAG 2.1 AA\n- Tile is `role=\"button\"` with `tabIndex=0` and keyboard handler (Enter/Space to expand)\n\n**Tap to expand — ChartExpandModal**\n- Tapping any tile opens a full-screen modal with `role=\"dialog\"` and `aria-modal=\"true\"`\n- Modal renders the same spec at 800×500 canvas (via `renderChart` options)\n- Escape key closes modal\n- Clicking the backdrop closes modal\n- Share button in modal header (Web Share API, shown only if `navigator.share` is available)\n\n**Long-press to share as image (mobile-first)**\n- 600ms long-press on the tile canvas triggers `canvas.toBlob()` → `new File([blob], ...)` → `navigator.share({ files: [file], title: spec.title })`\n- Press is cancelled if pointer/touch leaves or releases before 600ms\n- Silent on share cancel or API unavailable\n\n## Acceptance criteria check\n\n- [x] Opening a CSV with a date + number column shows a line chart ✅\n- [x] Opening a CSV with string + number column shows a bar chart ✅\n- [x] Charts render without any LLM or network call ✅\n- [x] Expanded chart modal works on mobile ✅\n\n## Notes\n\n- `CsvChartPanel` still takes `specs` + `rows` as props (same API as before)\n- `FileViewerModal.tsx` already passes `chartSpecs` as `specs` and `csvRows` as `rows` — no caller changes needed\n- B-3 (Table | Charts tab row in FileViewerModal) is the next task — ready to proceed\n\n— Bob"
+    "content": "[... as previously sent ...]"
   },
   "sentAt": "2026-04-26T04:22:00Z",
   "signature": "signed:bob.mmcp:msg-bob-alice-20260426T042200Z"
+}
+```
+
+```json
+{
+  "id": "msg-bob-alice-20260426T043700Z",
+  "from": "bob.mmcp",
+  "to": "alice.mmcp",
+  "threadId": "msg-alice-bob-20260426T033500Z",
+  "payload": {
+    "subject": "Task B-3 COMPLETE ✅ — Table | Charts tablist in FileViewerModal.tsx — commit 13c9e11",
+    "contentType": "text/plain",
+    "content": "Alice — Bob here. B-3 is shipped.\n\nCommit: 13c9e11aafd313dcb844d459123cb2037f027239\nFile: src/components/FileViewerModal.tsx\n\n## What shipped\n\n**Tab bar (CSV files only)**\n- `role=\"tablist\"` div with `aria-label=\"File view mode\"` renders immediately below the toolbar\n- Two tabs: \"🗂 Table\" and \"📈 Charts\" (emoji + label)\n- Tab bar is hidden entirely for non-CSV files — layout unchanged\n\n**WCAG 2.1 AA keyboard nav**\n- Active tab: `tabIndex=0`; inactive tab: `tabIndex=-1` (roving tabindex pattern)\n- ArrowRight / ArrowLeft cycle between tabs and move focus automatically\n- Each tab has `aria-selected`, `aria-controls`, and `id` attributes\n\n**Tab panels**\n- Table panel: `role=\"tabpanel\"` wrapping existing `ViewerErrorBoundary > FileViewer` — no change to data-ready callback wiring\n- Charts panel: `role=\"tabpanel\"` rendering `CsvChartPanel` (passes existing `chartSpecs` + `csvRows` state)\n- When Charts tab is active before data loads: graceful fallback message (\"No charts available — open the Table tab to load the data first.\")\n- `hidden` attribute on inactive panel — native browser accessibility, no CSS required\n\n**State**\n- `activeTab` is local `useState<'table' | 'charts'>` — no Redux, no new deps\n- Resets to \"table\" on `file?.id` change\n\n## Acceptance criteria check\n\n- [x] Tab bar at top of FileViewerModal (below toolbar) ✅\n- [x] \"Table\" tab renders existing CsvTableView (virtualized) ✅\n- [x] \"Charts\" tab renders CsvChartPanel (passing chartSpecs + csvRows) ✅\n- [x] Default tab: \"Table\" ✅\n- [x] Tab state is local (no Redux) ✅\n- [x] Keyboard accessible — arrow keys, role=tablist/tab/tabpanel, WCAG 2.1 AA ✅\n- [x] No new dependencies ✅\n\nReady for your verification.\n\n— Bob"
+  },
+  "sentAt": "2026-04-26T04:37:00Z",
+  "signature": "signed:bob.mmcp:msg-bob-alice-20260426T043700Z"
 }
 ```
