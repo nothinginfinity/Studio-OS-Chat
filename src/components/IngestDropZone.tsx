@@ -1,18 +1,25 @@
 /**
  * IngestDropZone.tsx
  *
- * File upload drop zone for OCR + PDF ingestion.
+ * File upload drop zone for OCR + PDF + CSV ingestion.
  * - Drag-and-drop or click-to-browse
- * - Routes to ingestImageAsMarkdown() for images, ingestPdfAsMarkdown() for PDFs
+ * - Routes to ingestImageAsMarkdown() for images, ingestPdfAsMarkdown() for PDFs,
+ *   ingestCsv() for CSVs
  * - PDFs: ingestPdfAsMarkdown() handles its own indexing internally — do NOT call indexFile() again
+ * - CSVs: ingestCsv() returns chunkText; we wrap it as a synthetic .txt and index via indexFile()
  * - Images: OCR output is wrapped as a synthetic .md file and indexed via indexFile()
  * - Mode selector for OCR: screenshot / document / code / receipt
  * - Auto-selects "document" mode when a multi-page image (non-PDF) is detected
  * - Shows per-file progress and result status
+ *
+ * FIX-002-F1: added .csv,text/csv to <input accept>
+ * FIX-002-F2: added isCsv branch in processFile() routing to csvIngestion
+ * FIX-002-F3: updated drop zone label/subtitle to include CSV
  */
 import { useState, useRef, useCallback } from "react";
 import { ingestImageAsMarkdown } from "../lib/ocr";
 import { ingestPdfAsMarkdown } from "../lib/pdfIngestion";
+import { ingestCsv } from "../lib/csvIngestion";
 import { indexFile } from "../lib/fileIndex";
 import type { OCRMode } from "../lib/types";
 
@@ -43,8 +50,13 @@ export function IngestDropZone() {
     const isImage = file.type.startsWith("image/");
     const isPdf =
       file.type === "application/pdf" || file.name.endsWith(".pdf");
+    // FIX-002-F2: detect CSV by MIME type or extension
+    const isCsv =
+      file.type === "text/csv" ||
+      file.type === "application/csv" ||
+      file.name.toLowerCase().endsWith(".csv");
 
-    if (!isImage && !isPdf) {
+    if (!isImage && !isPdf && !isCsv) {
       updateFile(file.name, { status: "error", message: "Unsupported type" });
       return;
     }
@@ -66,6 +78,27 @@ export function IngestDropZone() {
           message: `Indexed — ${result.pageCount} page${
             result.pageCount !== 1 ? "s" : ""
           } ✓`,
+        });
+      } else if (isCsv) {
+        // FIX-002-F2: route CSV through the Phase 6 ingestion pipeline
+        const result = await ingestCsv(file);
+        if (!result) {
+          updateFile(file.name, { status: "error", message: "CSV parsing returned no content" });
+          return;
+        }
+
+        // Wrap the tab-separated chunk text as a synthetic .txt so indexFile
+        // can chunk + store it with real searchable text content
+        const textBlob = new Blob([result.chunkText], { type: "text/plain" });
+        const syntheticFile = new File([textBlob], file.name + ".txt", {
+          type: "text/plain",
+          lastModified: Date.now(),
+        });
+        await indexFile(syntheticFile, DEFAULT_ROOT, file.name + ".txt");
+
+        updateFile(file.name, {
+          status: "done",
+          message: `CSV indexed — ${result.csvMeta.rowCount} rows, ${result.csvMeta.columns.length} columns ✓`,
         });
       } else {
         // Auto-select "document" mode for images that look like document scans
@@ -185,14 +218,16 @@ export function IngestDropZone() {
         }}
       >
         <span className="ingest-dropzone-icon">📂</span>
-        <span className="ingest-dropzone-label">Drop images or PDFs here</span>
+        {/* FIX-002-F3: updated label to include CSV */}
+        <span className="ingest-dropzone-label">Drop images, PDFs, or CSVs here</span>
         <span className="ingest-dropzone-sub">
-          Images → OCR ({mode}) · PDFs → text extraction + search index
+          Images → OCR ({mode}) · PDFs → text extraction · CSVs → structured index
         </span>
+        {/* FIX-002-F1: added .csv,text/csv to accept */}
         <input
           ref={inputRef}
           type="file"
-          accept="image/*,.pdf"
+          accept="image/*,.pdf,.csv,text/csv"
           multiple
           style={{ display: "none" }}
           onChange={(e) => handleFiles(e.target.files)}
