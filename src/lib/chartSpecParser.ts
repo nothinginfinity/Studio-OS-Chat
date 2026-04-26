@@ -14,46 +14,98 @@ function isChartType(v: unknown): v is ChartType {
 }
 
 /**
- * Parses a raw JSON object into a ChartSpec, returning null if invalid.
+ * Describes a single failed ```chartspec parse so the UI can show
+ * a friendly error card instead of silently dropping the block.
+ */
+export interface ParseError {
+  /** Zero-based index of the fenced block in the message (for React keys). */
+  blockIndex: number;
+  /** Human-readable reason: JSON syntax failure or schema validation message. */
+  reason: string;
+  /** The raw text content of the fenced block that failed. */
+  rawContent: string;
+}
+
+/**
+ * Parses a raw JSON object into a ChartSpec, returning null + reason if invalid.
  * The `id` field is always overwritten with a fresh uuid.
  */
-function parseChartSpec(raw: unknown): ChartSpec | null {
-  if (typeof raw !== 'object' || raw === null) return null;
+function parseChartSpec(
+  raw: unknown,
+): { spec: ChartSpec } | { error: string } {
+  if (typeof raw !== 'object' || raw === null)
+    return { error: 'Expected a JSON object at the top level.' };
   const obj = raw as Record<string, unknown>;
-  if (!isChartType(obj.type)) return null;
-  if (typeof obj.title !== 'string' || !obj.title.trim()) return null;
-  if (typeof obj.xKey !== 'string' || !obj.xKey.trim()) return null;
+  if (!isChartType(obj.type))
+    return { error: `"type" must be one of: ${CHART_TYPES.join(', ')}. Got: ${JSON.stringify(obj.type)}.` };
+  if (typeof obj.title !== 'string' || !obj.title.trim())
+    return { error: '"title" must be a non-empty string.' };
+  if (typeof obj.xKey !== 'string' || !obj.xKey.trim())
+    return { error: '"xKey" must be a non-empty string.' };
   const yKeys = Array.isArray(obj.yKeys)
     ? (obj.yKeys as unknown[]).filter((k): k is string => typeof k === 'string')
     : [];
-  if (yKeys.length === 0) return null;
+  if (yKeys.length === 0)
+    return { error: '"yKeys" must be a non-empty array of strings.' };
 
   return {
-    id: crypto.randomUUID(),
-    type: obj.type,
-    title: obj.title.trim(),
-    xKey: obj.xKey.trim(),
-    yKeys,
-    source: 'llm',
+    spec: {
+      id: crypto.randomUUID(),
+      type: obj.type,
+      title: obj.title.trim(),
+      xKey: obj.xKey.trim(),
+      yKeys,
+      source: 'llm',
+    },
   };
 }
 
 /**
- * Extracts all valid ChartSpec objects from a single assistant message string.
+ * Result of scanning a single assistant message for chartspec blocks.
+ */
+export interface ChartSpecResults {
+  specs: ChartSpec[];
+  errors: ParseError[];
+}
+
+/**
+ * Extracts all valid ChartSpec objects from a single assistant message string,
+ * AND collects structured errors for every block that failed to parse.
+ * Use this in UI components so parse failures surface as friendly error cards.
+ *
  * Matches:  ```chartspec\n...\n```
  */
-export function extractChartSpecs(content: string): ChartSpec[] {
+export function extractChartSpecResults(content: string): ChartSpecResults {
   const FENCE_RE = /```chartspec\s*\n([\s\S]*?)```/gi;
-  const results: ChartSpec[] = [];
+  const specs: ChartSpec[] = [];
+  const errors: ParseError[] = [];
   let match: RegExpExecArray | null;
+  let blockIndex = 0;
+
   while ((match = FENCE_RE.exec(content)) !== null) {
+    const rawContent = match[1];
     try {
-      const parsed = JSON.parse(match[1]);
-      const spec = parseChartSpec(parsed);
-      if (spec) results.push(spec);
-    } catch {
-      // malformed JSON — skip silently
+      const parsed = JSON.parse(rawContent);
+      const result = parseChartSpec(parsed);
+      if ('spec' in result) {
+        specs.push(result.spec);
+      } else {
+        errors.push({ blockIndex, reason: result.error, rawContent });
+      }
+    } catch (e) {
+      const msg = e instanceof SyntaxError ? e.message : 'Invalid JSON.';
+      errors.push({ blockIndex, reason: `JSON parse error: ${msg}`, rawContent });
     }
+    blockIndex++;
   }
-  return results;
+
+  return { specs, errors };
+}
+
+/**
+ * Backwards-compatible convenience wrapper — returns only the valid specs.
+ * Prefer extractChartSpecResults() in UI code so errors can be surfaced.
+ */
+export function extractChartSpecs(content: string): ChartSpec[] {
+  return extractChartSpecResults(content).specs;
 }

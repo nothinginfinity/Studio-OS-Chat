@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ChatMessage, ChartSpec } from "../lib/types";
-import { extractChartSpecs } from "../lib/chartSpecParser";
+import { extractChartSpecResults } from "../lib/chartSpecParser";
+import type { ParseError } from "../lib/chartSpecParser";
 import { InlineCsvChart } from "./InlineCsvChart";
 
 interface Props {
@@ -86,6 +87,43 @@ function ToolPill({ message }: { message: ChatMessage }) {
   );
 }
 
+/**
+ * Friendly error card rendered in place of a chart when the LLM emits a
+ * ```chartspec block that fails JSON parsing or schema validation.
+ */
+function ChartParseErrorCard({ error }: { error: ParseError }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="chart-parse-error"
+      role="alert"
+      aria-label="Chart specification error"
+    >
+      <div className="chart-parse-error-header">
+        <span className="chart-parse-error-icon" aria-hidden="true">⚠️</span>
+        <span className="chart-parse-error-title">Chart could not be rendered</span>
+        <button
+          className="chart-parse-error-toggle"
+          aria-expanded={open}
+          aria-controls={`chart-error-detail-${error.blockIndex}`}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {open ? "Hide details" : "Show details"}
+        </button>
+      </div>
+      <p className="chart-parse-error-reason">{error.reason}</p>
+      {open && (
+        <pre
+          id={`chart-error-detail-${error.blockIndex}`}
+          className="chart-parse-error-raw"
+        >
+          {error.rawContent.trim()}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function AssistantBubble({
   message,
   csvRows,
@@ -95,11 +133,13 @@ function AssistantBubble({
   csvRows: Record<string, string>[];
   onChartSpecsFound?: (specs: ChartSpec[]) => void;
 }) {
-  const specs = extractChartSpecs(message.content);
+  const { specs, errors } = extractChartSpecResults(message.content);
   if (specs.length > 0) onChartSpecsFound?.(specs);
 
   const cleaned = stripChartSpecBlocks(message.content);
   const html = renderMarkdown(cleaned);
+
+  const hasChartContent = specs.length > 0 || errors.length > 0;
 
   return (
     <>
@@ -107,10 +147,16 @@ function AssistantBubble({
         className="message-content md-body"
         dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
       />
-      {specs.length > 0 && csvRows.length > 0 && (
+      {hasChartContent && (
         <div className="inline-chart-list">
+          {/* Valid specs: render chart. Empty csvRows → Chart.js renders with no data,
+              which is correct per AC: "works when no file is attached". */}
           {specs.map((spec) => (
             <InlineCsvChart key={spec.id} spec={spec} rows={csvRows} />
+          ))}
+          {/* Parse errors: friendly card, not a crash */}
+          {errors.map((err) => (
+            <ChartParseErrorCard key={`parse-error-${err.blockIndex}`} error={err} />
           ))}
         </div>
       )}
