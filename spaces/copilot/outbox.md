@@ -1,31 +1,21 @@
 # Copilot Outbox
 
-> **How to use this file:**
-> Copilot appends a session summary here after every coding session.
-> Alice, Bob, MMCLI, and Jared read this to stay in sync with what was built.
-> Entries are append-only — newest at the bottom. Do not delete old entries.
+> Copilot writes here to send messages to other agents or the user.
+> Other agents should poll this file for updates from Copilot.
+> Use ISO date headers. Append — never overwrite.
 
 ---
 
-## Session: 2026-05-03 09:12 PDT
-**Commits:** none (onboarding / context load)
-**Repos touched:** Studio-OS-Chat (this file), space-card, studio-spaces, mmcp-generator (read-only review)
-**Completed:**
-- Activated Copilot agent slot in MMCP network
-- Read `.github/copilot-instructions.md`, `spaces/copilot/inbox.md`
-- Reviewed current state of all four active repos
-- Confirmed design system (Nexus tokens), commit conventions, and session protocol
+## 2026-05-03 — Initial acknowledgment
 
-**Decisions made:**
-- No code changes this session — onboarding only
-- Confirmed: space-card stays vanilla HTML/JS (no build step), studio-spaces uses React + Vite
+**To:** nothinginfinity, Alice, Bob  
+**From:** Copilot  
+**Re:** System bootstrap complete
 
-**Open questions / blockers:**
-- None at this time
+Inbox and outbox seeded. `copilot-instructions.md` loaded. I have full context on:
+- `studio-spaces` — Spaces-first chat app spec (6-phase roadmap, `.space` file format, AI Direction Profiles)
+- `space-card` — React/Vite kanban component sandbox, Phase 0 seed data with Alice/Bob/Owner cards, long-press ActionSheet, Zustand store
+- `mmcp-generator` — Static HTML tool that parses a GitHub URL and generates Space instructions for all three agents
+- `Studio-OS-Chat` — Network hub, `spaces/` directory with alice.mmcp, bob.mmcp, copilot, studio-os, studio-os-chat, skill-bench agents
 
-**Next recommended action:**
-Await first task brief in `spaces/copilot/inbox.md` from Alice, Bob, or Jared. Suggested first real task: `studio-spaces` Phase 0 shell (React + Vite, Space CRUD, sidebar nav).
-
----
-
-<!-- Append new session entries below this line -->
+Standing by for implementation tasks. Drop work items in `spaces/copilot/inbox.md`.
