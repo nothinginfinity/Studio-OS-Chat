@@ -89,6 +89,124 @@ Add a one-line summary above the export buttons: **"47 files · ~312 KB · Docs 
 
 ---
 
+## 2026-05-03 — repo-copilot Phase 3 spec (from Perplexity)
+
+**To:** Perplexity (studio-os-chat) — next session  
+**From:** Perplexity (this session)  
+**Re:** repo-copilot Phase 3 — GitHub push tool + collapsible chat config UI
+
+### Context
+
+Phase 2 of `nothinginfinity/repo-copilot` is live (Code/Docs/Config filters, mailbox pinning, export summary).  
+The user wants repo-copilot to serve as a **self-contained LLM dev environment** — load a repo, chat with an LLM, have the LLM write patches, review them in-app, and push directly to GitHub using the PAT already entered. No terminal required.
+
+### Phase 3 Spec
+
+---
+
+#### Feature A — Collapsible Chat Config Panel (UI fix)
+
+**Problem:** The config block (Provider / Model / API Key / Context) consumes ~40% of the visible Chat screen before a single message appears with no way to minimize it.
+
+**Fix:** Collapse the config block to a **44px status bar** once configured.
+
+**Status bar layout** (always visible, full width):
+```
+● DeepSeek  /  deepseek-chat          Tokens: 179,750  ▲
+```
+- `●` dot: grey when unconfigured, green (`--color-success`) when provider + model + API key are all filled
+- Provider name + model name pulled live from the fields
+- Token count from existing `updateTokenEst()`
+- `▲▼` chevron toggles the full config body open/closed
+- Tapping anywhere on the bar opens/closes the config
+- **Auto-collapse:** fires automatically the moment all three required fields are filled
+- Panel starts **expanded** on first visit
+- Keyboard accessible: Enter/Space on the bar toggles
+
+**CSS:** New classes `.chat-config-header`, `.chat-config-body` (uses `[hidden]` attribute), `.chat-config-dot`, `.chat-config-chevron`
+
+---
+
+#### Feature B — GitHub Push Tool
+
+**Goal:** LLM writes a file patch in chat → user reviews it → hits Push → goes to GitHub using the PAT already in the app. Browser-direct, no server.
+
+##### B1. LLM file detection
+
+Scan every assistant message for fenced code blocks tagged with a filename:
+
+````
+```repo-copilot.html
+...full file content...
+```
+````
+
+When detected, render a **"Stage this file"** action bar directly below the code block:
+```
+[ repo-copilot.html · 72 KB ]  [Stage for push]
+```
+
+##### B2. Staged changes tray
+
+A collapsible **Staged Changes** tray sits between the config bar and the message list (hidden when empty). Shows:
+- File path + size
+- `[View diff]` button (opens preview sheet with the new content)
+- `[Remove]` button (unstages)
+- Multiple files can be staged simultaneously
+
+Tray header: `📦 N file staged  ──────────────────  [Clear all]`
+
+##### B3. Push panel
+
+Shown below the staged tray when at least 1 file is staged:
+
+```
+Commit message: [  feat: LLM-authored patch via repo-copilot  ]
+Branch:         [  main  ▾ ]   (dropdown populated from loaded repo's branches)
+                              [  + new branch  ]
+
+                [ Push to GitHub ]
+```
+
+- Uses `PUT /repos/{owner}/{repo}/contents/{path}` with `Authorization: Bearer {PAT}`
+- Fetches current file SHA automatically before push (required by GitHub API)
+- On success: green status bar with commit URL as a tappable link
+- On error: red status with the GitHub API error message
+- After successful push: clears staged tray, reloads file tree
+
+##### B4. Security model
+
+- PAT stays in browser memory only — same as the existing repo-loader PAT
+- The LLM **cannot push** — it can only write content into the chat. The user always hits the Push button.
+- Pushing to a new branch (not main) is encouraged via the branch selector default suggestion
+- No server, no proxy — browser → GitHub API directly
+
+---
+
+### Implementation notes
+
+- **PAT reuse:** `document.getElementById('pat-input').value` — already present in Files panel
+- **File SHA fetch:** before each push, call `GET /repos/{owner}/{repo}/contents/{path}?ref={branch}` to get current SHA — required by GitHub Contents API for updates
+- **Filename tag detection regex:** `/^```([\w./\-]+\.\w+)$/m` — matches ` ```filename.ext ` at start of a code fence
+- **Staged state:** `let stagedFiles = []` — array of `{ path, content, detectedFrom: messageIndex }`
+- **Branch list:** after repo loads, call `GET /repos/{owner}/{repo}/branches` and populate the branch selector
+- **New branch push:** use `PUT` with a SHA from the current branch tip — GitHub creates the branch automatically if it doesn't exist
+
+### Acceptance criteria
+
+- [ ] Config panel collapses to 44px status bar after all three fields are filled
+- [ ] Status bar shows live provider, model, token count, and readiness dot
+- [ ] Tapping status bar re-opens config panel
+- [ ] LLM messages with ` ```filename.ext ` fences get a "Stage for push" button
+- [ ] Staged files appear in the tray with View / Remove actions
+- [ ] Push panel shows commit message field + branch selector
+- [ ] Successful push shows commit URL and refreshes tree
+- [ ] PAT never leaves the browser
+- [ ] Pushing to a new branch works
+- [ ] All Phase 1 + 2 features still work unchanged
+
+---
+
 ## NETWORK CONTEXT — read this on every new session
 
 This file is the persistent memory for Perplexity in the studio-os-chat Space.
@@ -105,6 +223,7 @@ Append new entries here after every significant task so future sessions have ful
 | `space-card` Phase 1 | ✅ Code complete on `feat/phase-1-dnd` — PR pending |
 | `studio-spaces` Phase 0 | ⏳ Spec complete, scaffold not started |
 | `mmcp-generator` | ✅ Static HTML tool committed — GitHub API wiring pending |
-| `repo-copilot` Phase 1 | ✅ Live at `nothinginfinity/repo-copilot` — SHA `8bbc4fee` |
-| `repo-copilot` Phase 2 | 📋 Spec written — ready to build |
+| `repo-copilot` Phase 1 | ✅ Live |
+| `repo-copilot` Phase 2 | ✅ Live — Code/Docs/Config filters, mailbox pinning, export summary |
+| `repo-copilot` Phase 3 | 📋 Spec written — collapsible config UI + GitHub push tool — building now |
 | Perplexity→Copilot direct messaging | ✅ Proven — first task sent and executed without human relay |
