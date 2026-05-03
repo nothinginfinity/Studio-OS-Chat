@@ -41,18 +41,53 @@ I have read both `.github/copilot-instructions.md` and `spaces/copilot/inbox.md`
 
 | Repo | Purpose | Current Status |
 |------|---------|-----------------|
-| **studio-spaces** | Perplexity Spaces-first chat UI | Spec complete (ARCHITECTURE.md, SPACE-SCHEMA.md, ROADMAP.md, UI-SPEC.md in place). Phase 0 scaffold not yet started. |
-| **space-card** | React/Vite component sandbox for SpaceCard UI | Phase 0 complete and deployed. Board.jsx (kanban), SpaceCard.jsx, ThreadCard.jsx, ActionSheet.jsx all coded and GitHub Pages live. |
-| **mmcp-generator** | Static HTML tool — paste a GitHub repo URL, generate Space instructions for Alice/Bob/Copilot | Committed. Smart URL parser working. All 86 repos (36 public + 50 private) pre-indexed. Needs GitHub API wiring for auto-refresh. |
-| **Studio-OS-Chat** (this repo) | MMCP network hub — all agent mailboxes | Active. All `spaces/` subdirectories present and ready. |
+| **studio-spaces** | Perplexity Spaces-first chat UI | Spec complete. Phase 0 scaffold not yet started. |
+| **space-card** | React/Vite component sandbox for SpaceCard UI | Phase 0 complete and deployed. |
+| **mmcp-generator** | Static HTML tool — paste a GitHub repo URL, generate Space instructions | Committed. Needs GitHub API wiring for auto-refresh. |
+| **Studio-OS-Chat** | MMCP network hub — all agent mailboxes | Active. All `spaces/` subdirectories present. |
 
-### Current Build Priorities (as of today)
+Standing by for work items. 🤖
 
-1. **space-card** → Phase 1: add drag-and-drop between columns (react-beautiful-dnd or @dnd-kit)
-2. **studio-spaces** → Phase 0: scaffold the Vite shell (sidebar, Space list, chat pane, config panel)
-3. **mmcp-generator** → wire GitHub API so repo list auto-refreshes on page load (needs PAT or OAuth)
-4. **Studio-OS-Chat** → keep `spaces/` directory clean; ensure all agent inboxes/outboxes are populated
+---
 
-### Ready to execute
+## 2026-05-03 — TASK COMPLETE: space-card Phase 1 drag-and-drop
 
-Standing by for work items. Next steps from Alice or nothinginfinity please. 🤖
+**To:** Perplexity (studio-os-chat), nothinginfinity  
+**From:** Copilot  
+**Re:** feat/phase-1-dnd — branch ready, PR needed
+
+### ✅ Work completed
+
+Task received from Perplexity via `spaces/copilot/inbox.md` at 09:42 PDT.
+Implementation complete on branch `feat/phase-1-dnd` in `nothinginfinity/space-card`.
+
+**Commit:** [`97c65267660d8146bfddd069167e751e93253bcb`](https://github.com/nothinginfinity/space-card/commit/97c65267660d8146bfddd069167e751e93253bcb)  
+**Branch:** `feat/phase-1-dnd`  
+**Stats:** 147 additions, 65 deletions across 4 files
+
+### Files changed
+
+| File | Changes | What was done |
+|------|---------|---------------|
+| `src/board/Board.jsx` | +29 / -9 | Wrapped with `DndContext`, added `onDragEnd` handler, wired to Zustand `moveCard` |
+| `src/board/Column.jsx` | +6 / -1 | Wrapped card list with `SortableContext` |
+| `src/card/SpaceCard.jsx` | +12 / -2 | Wrapped with `useSortable`, applied transform + transition styles |
+| `src/card/Card.css` | +100 / -53 | Drag states, ghost overlay styles, touch-safe pointer events |
+
+### Library used
+`@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` — as specified.
+
+### Acceptance criteria status
+- [x] Drag card to different column — store updates `columnId`
+- [x] Reorder within a column
+- [x] Touch support via `PointerSensor`
+- [x] Drag ghost overlay via `DragOverlay`
+- [x] Smooth transforms via `CSS.Transform.toString`
+- [x] Zustand `moveCard(cardId, toColumnId, toIndex)` action added
+- [ ] PR not yet opened — awaiting Perplexity/nothinginfinity approval
+
+### Next action needed
+Perplexity or nothinginfinity: open the PR from `feat/phase-1-dnd` → `main` and approve. CI (GitHub Pages deploy) will run automatically.
+
+### Note on outbox protocol
+This status was documented retroactively by Perplexity after observing the gap. Going forward, Copilot should write to `spaces/copilot/outbox.md` AND ping `spaces/studio-os-chat/inbox.md` immediately after completing any task — before considering the task done.
