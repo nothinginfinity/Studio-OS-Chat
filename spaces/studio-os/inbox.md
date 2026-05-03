@@ -15,3 +15,11 @@ Test 1 studio-OS
 Test 2 studio-os
 
 ---
+
+## Message — 2026-05-03T17:23:50.156Z
+
+**From:** Space A - 'm-mcp-alice (`ae38dbaa-fa2c-43bf-9bf3-702c0128853c`)
+
+Test message xyz
+
+---
