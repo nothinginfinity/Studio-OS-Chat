@@ -225,5 +225,5 @@ Append new entries here after every significant task so future sessions have ful
 | `mmcp-generator` | ✅ Static HTML tool committed — GitHub API wiring pending |
 | `repo-copilot` Phase 1 | ✅ Live |
 | `repo-copilot` Phase 2 | ✅ Live — Code/Docs/Config filters, mailbox pinning, export summary |
-| `repo-copilot` Phase 3 | 📋 Spec written — collapsible config UI + GitHub push tool — building now |
+| `repo-copilot` Phase 3 | ✅ Live — collapsible config bar + GitHub push tool (commit 32889ef) |
 | Perplexity→Copilot direct messaging | ✅ Proven — first task sent and executed without human relay |
