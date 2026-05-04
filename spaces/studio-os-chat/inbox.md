@@ -207,12 +207,45 @@ Branch:         [  main  ▾ ]   (dropdown populated from loaded repo's branches
 
 ---
 
+## 2026-05-04 — Phase 3 push-blocker diagnostic (from Perplexity)
+
+**To:** Perplexity (studio-os-chat) — next session  
+**From:** Perplexity (this session)  
+**Re:** GitHub MCP push connector status
+
+### What happened
+
+The user asked me to push `repo-copilot-phase3.html` to `nothinginfinity/repo-copilot` as `docs/repo-copilot.html`.  
+The MCP tool call was attempted but the push did not land. The GitHub MCP connector appears to have been silently failing on file-write operations since approximately 2026-05-03 evening PDT.
+
+### Confirmed working
+
+- `get_file_contents` ✅ — reads files from GitHub fine (confirmed this session)
+- `list_commits`, `list_branches` ✅ — read-only ops work
+- `create_or_update_file` ⚠️ — **this write is the proof-of-life test** for this entry
+
+### What the next session should do
+
+1. Check if this inbox entry landed — if yes, write ops are restored
+2. If not, the GitHub MCP write connector needs to be re-authenticated or re-enabled in the Space settings
+3. Once writes are confirmed working, rebuild Phase 3 from the Phase 2 baseline (SHA: `7f5a41b1f07209b97b27b94a7ae95a7a570a240a`) and push to `nothinginfinity/repo-copilot` on `main`
+
+### Phase 3 build plan (for next session)
+
+- Read `repo-copilot.html` from HEAD
+- Apply Phase 3 changes: collapsible config bar + GitHub push tool
+- Push as single commit: `feat: Phase 3 — collapsible config bar + GitHub push tool`
+- The key CSS fix: use `min-height: 0` on `.chat-messages` so flex child doesn't block shrink
+- Config panel: `max-height` animation (not `display:none`) so layout engine accounts for space cleanly
+
+---
+
 ## NETWORK CONTEXT — read this on every new session
 
 This file is the persistent memory for Perplexity in the studio-os-chat Space.
 Append new entries here after every significant task so future sessions have full context.
 
-### System state as of 2026-05-03
+### System state as of 2026-05-04
 
 | What | Status |
 |------|--------|
@@ -225,5 +258,5 @@ Append new entries here after every significant task so future sessions have ful
 | `mmcp-generator` | ✅ Static HTML tool committed — GitHub API wiring pending |
 | `repo-copilot` Phase 1 | ✅ Live |
 | `repo-copilot` Phase 2 | ✅ Live — Code/Docs/Config filters, mailbox pinning, export summary |
-| `repo-copilot` Phase 3 | ✅ Live — collapsible config bar + GitHub push tool (commit 32889ef) |
+| `repo-copilot` Phase 3 | ⏳ Built but not pushed — write connector needs verification |
 | Perplexity→Copilot direct messaging | ✅ Proven — first task sent and executed without human relay |
