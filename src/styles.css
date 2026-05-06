@@ -24,8 +24,8 @@ body {
 .app-shell {
   display: grid;
   grid-template-columns: 320px 1fr;
-  min-height: 100vh;
-  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -35,7 +35,7 @@ body {
   flex-direction: column;
   gap: 16px;
   background: #12161d;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -78,15 +78,18 @@ body {
 .chat-window {
   display: grid;
   grid-template-rows: 1fr auto auto auto;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 .message-list {
   padding: 20px;
-  overflow: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
 }
 
 .message {
@@ -279,104 +282,44 @@ button:hover {
   line-height: 1.5;
 }
 
-/* ── Ollama Status indicator ──────────────────────────────────────────── */
+/* ── Ollama Status indicator ──────────────────────────────────────────────────── */
 
 .ollama-status {
-  background: #0d1117;
-  border: 1px solid #222833;
-  border-radius: 10px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.ollama-status-row {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.ollama-status-dot {
-  font-size: 10px;
-  line-height: 1;
-}
-
-.ollama-status-label {
-  flex: 1;
-  font-weight: 500;
-}
-
-.ollama-status-recheck {
-  border: none;
-  background: transparent;
-  color: #6b7a99;
-  padding: 2px 6px;
-  font-size: 15px;
-  cursor: pointer;
-  border-radius: 6px;
-  line-height: 1;
-}
-
-.ollama-status-recheck:hover {
-  background: #1c2431;
-  color: #f5f7fa;
-}
-
-.ollama-status-error {
-  color: #ff9b9b;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #0d1117;
+  border: 1px solid #1e2a3a;
   font-size: 12px;
-  word-break: break-word;
 }
 
-.ollama-status-models {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
+.ollama-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.ollama-model-chip {
-  background: #1c2431;
-  border: 1px solid #2d3a50;
-  border-radius: 6px;
-  padding: 2px 7px;
-  font-size: 11px;
-  color: #8fa3c8;
-  white-space: nowrap;
-}
+.ollama-dot--green  { background: #2a9a5a; }
+.ollama-dot--yellow { background: #d4a017; }
+.ollama-dot--red    { background: #9b2020; }
 
-.ollama-model-chip.active {
-  background: #1a3a5c;
-  border-color: #2a6aad;
-  color: #7ec8ff;
-  font-weight: 600;
-}
-
-.ollama-status-time {
-  font-size: 11px;
-  color: #444f66;
-}
-
-/* ── ProviderSettings cards ──────────────────────────────────────────────── */
-
-.provider-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.settings-section-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.ollama-label {
+  flex: 1;
   color: #6b7a99;
-  margin-bottom: 2px;
 }
 
-.provider-settings-note {
+.ollama-action {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* ── Settings note ──────────────────────────────────────────────────────────── */
+
+.settings-note {
   font-size: 12px;
   color: #6b7a99;
   margin: 0 0 4px;
@@ -748,13 +691,15 @@ button:hover {
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
-    height: auto;
+    grid-template-rows: auto 1fr;
+    height: 100dvh;
   }
 
   .sidebar {
     border-right: none;
     border-bottom: 1px solid #222833;
     height: auto;
+    max-height: 50dvh;
     overflow-y: auto;
   }
 
@@ -763,7 +708,8 @@ button:hover {
   }
 
   .chat-window {
-    min-height: auto;
+    height: 100%;
+    min-height: 0;
   }
 }
 
